@@ -232,9 +232,9 @@ static void fill_i_m_r(char **args, reg_t *regp, imm_t *immp);
 static void fill_i_v(char **args, reg_t *regp, imm_t *immp);
 static void fill_i_r(char **args, reg_t *regp, imm_t *immp);
 
-#define code_flag(ins) (Y86_CODE_INFO[ins].flag)
-#define code_argn(ins) (Y86_CODE_INFO[ins].argn)
-#define code_filler(ins) (Y86_CODE_INFO[ins].filler)
+#define code_flag(code) (Y86_CODE_INFO[code].flag)
+#define code_argn(code) (Y86_CODE_INFO[code].argn)
+#define code_filler(code) (Y86_CODE_INFO[code].filler)
 
 #define ins_flag(ins) code_flag(ins_code(ins))
 #define ins_argn(ins) code_argn(ins_code(ins))
