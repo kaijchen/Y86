@@ -3,33 +3,83 @@
 #include <ctype.h>
 #include <string.h>
 
-static LIST_HEAD(symbol_list);
+static LIST_HEAD(symbol_head);		/* symbol list head */
+
+struct immp_entry {
+	imm_t *immp;
+	struct list_head immp_list;		/* immp list */
+};
 
 struct symbol_entry {
 	char *symbol;
+	int valid;
 	imm_t value;
-	struct list_head list;
+	struct list_head symbol_list;	/* symbol list */
+	struct list_head immp_head;	/* immp list head */
 };
+
+static void add_immp(struct list_head *immp_headp, imm_t *immp)
+{
+	struct immp_entry *iptr = malloc(sizeof(*iptr));
+
+	iptr->immp = immp;
+
+	INIT_LIST_HEAD(&iptr->immp_list);
+	list_add(&iptr->immp_list, immp_headp);
+}
+
+static struct symbol_entry *add_new_symbol(const char *symbol, imm_t value)
+{
+	struct symbol_entry *sptr = malloc(sizeof(*sptr));
+
+	sptr->symbol = strdup(symbol);
+	sptr->value = value;
+	sptr->valid = 0;
+	INIT_LIST_HEAD(&sptr->immp_head);
+
+	INIT_LIST_HEAD(&sptr->symbol_list);
+	list_add(&sptr->symbol_list, &symbol_head);
+	return sptr;
+}
 
 void add_symbol(const char *symbol, imm_t value)
 {
-	struct symbol_entry *ptr = malloc(sizeof(*ptr));
+	struct symbol_entry *sptr;
+	struct immp_entry *iptr, *itmp;
 
-	ptr->symbol = strdup(symbol);
-	ptr->value = value;
+	list_for_each_entry(sptr, &symbol_head, symbol_list)
+		if (strcmp(sptr->symbol, symbol) == 0)
+			break;
 
-	INIT_LIST_HEAD(&ptr->list);
-	list_add(&ptr->list, &symbol_list);
+	if (&sptr->symbol_list == &symbol_head)
+		sptr = add_new_symbol(symbol, value);
+
+	sptr->valid = 1;
+
+	list_for_each_entry_safe(iptr, itmp, &sptr->immp_head, immp_list) {
+		*iptr->immp = value;
+		free(iptr);
+	}
 }
 
-static imm_t lookup_symbol(const char *str)
+static void lookup_symbol(const char *symbol, imm_t *immp)
 {
-	const struct symbol_entry *ptr;
+	struct symbol_entry *sptr;
 
-	list_for_each_entry(ptr, &symbol_list, list)
-		if (strcmp(ptr->symbol, str) == 0)
-			return ptr->value;
-	return 0;
+	list_for_each_entry(sptr, &symbol_head, symbol_list)
+		if (strcmp(sptr->symbol, symbol) == 0)
+			break;
+
+	if (&sptr->symbol_list == &symbol_head) {
+		sptr = add_new_symbol(symbol, 0);
+		sptr->valid = 0;
+	}
+
+	if (sptr->valid) {
+		*immp = sptr->value;
+	} else {
+		add_immp(&sptr->immp_head, immp);
+	}
 }
 
 #define pack(h, l) (((l) & 0xF) | (((h) & 0xF) << 4))
@@ -281,23 +331,16 @@ imm_t parse_number(const char *str)
 	return dec == 0 ? hex : dec;
 }
 
-static imm_t parse_symbol(const char *str)
-{
-	return lookup_symbol(str);
-}
-
-static imm_t parse_constant(const char *str)
+static void parse_constant(const char *str, imm_t *immp)
 {
 	if (str[0] == '\0')
-		return 0;
-
-	if (str[0] == '$')
-		return parse_number(str + 1);
-
-	if (isdigit(str[0]) || str[0] == '-' || str[0] == '+')
-		return parse_number(str);
+		*immp = 0;
+	else if (str[0] == '$')
+		*immp = parse_number(str + 1);
+	else if (isdigit(str[0]) || str[0] == '-' || str[0] == '+')
+		*immp = parse_number(str);
 	else
-		return parse_symbol(str);
+		lookup_symbol(str, immp);
 }
 
 static regid_t parse_memory(char *str, imm_t *immp)
@@ -348,7 +391,7 @@ static void parse_i_r_r(char **args, reg_t *regp, imm_t *immp)
 
 static void parse_i_v_r(char **args, reg_t *regp, imm_t *immp)
 {
-	*immp = parse_constant(args[1]);
+	parse_constant(args[1], immp);
 	*regp = reg_pack(R_NONE, parse_register(args[2]));
 }
 
@@ -364,7 +407,7 @@ static void parse_i_m_r(char **args, reg_t *regp, imm_t *immp)
 
 static void parse_i_v(char **args, reg_t *regp, imm_t *immp)
 {
-	*immp = parse_constant(args[1]);
+	parse_constant(args[1], immp);
 }
 
 static void parse_i_r(char **args, reg_t *regp, imm_t *immp)
