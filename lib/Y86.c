@@ -86,13 +86,13 @@ static void lookup_symbol(const char *symbol, imm_t *immp)
 #define unpack_h(c) (((c) >> 4) & 0xF)
 #define unpack_l(c) ((c) & 0xF)
 
-#define ins_pack(code, func) pack(code, func)
-#define ins_code(ins) unpack_h(ins)
-#define ins_func(ins) unpack_l(ins)
+#define pack_ins(code, func) pack(code, func)
+#define code_of_ins(ins) unpack_h(ins)
+#define func_of_ins(ins) unpack_l(ins)
 
-#define reg_pack(rA, rB) pack(rA, rB)
-#define reg_rA(reg) unpack_h(reg)
-#define reg_rB(reg) unpack_l(reg)
+#define pack_reg(rA, rB) pack(rA, rB)
+#define rA_of_reg(reg) unpack_h(reg)
+#define rB_of_reg(reg) unpack_l(reg)
 
 struct ins_dict {
 	const char *str;
@@ -100,37 +100,37 @@ struct ins_dict {
 };
 
 static const struct ins_dict Y86_INS_DICT[] = {
-	{"halt",   ins_pack(I_HALT, C_NONE)  },
-	{"nop",    ins_pack(I_NOP, C_NONE)   },
-	{"rrmovl", ins_pack(I_RRMOVL, C_NONE)},
-	{"cmovle", ins_pack(I_RRMOVL, C_LE)  },
-	{"cmovl",  ins_pack(I_RRMOVL, C_L)   },
-	{"cmove",  ins_pack(I_RRMOVL, C_E)   },
-	{"cmovne", ins_pack(I_RRMOVL, C_NE)  },
-	{"cmovge", ins_pack(I_RRMOVL, C_GE)  },
-	{"cmovg",  ins_pack(I_RRMOVL, C_G)   },
-	{"irmovl", ins_pack(I_IRMOVL, C_NONE)},
-	{"rmmovl", ins_pack(I_RMMOVL, C_NONE)},
-	{"mrmovl", ins_pack(I_MRMOVL, C_NONE)},
-	{"addl",   ins_pack(I_ALU, A_ADD)    },
-	{"subl",   ins_pack(I_ALU, A_SUB)    },
-	{"andl",   ins_pack(I_ALU, A_AND)    },
-	{"xorl",   ins_pack(I_ALU, A_XOR)    },
-	{"jmp",    ins_pack(I_JXX, C_NONE)   },
-	{"jle",    ins_pack(I_JXX, C_LE)     },
-	{"jl",     ins_pack(I_JXX, C_L)      },
-	{"je",     ins_pack(I_JXX, C_E)      },
-	{"jne",    ins_pack(I_JXX, C_NE)     },
-	{"jge",    ins_pack(I_JXX, C_GE)     },
-	{"jg",     ins_pack(I_JXX, C_G)      },
-	{"call",   ins_pack(I_CALL, C_NONE)  },
-	{"ret",    ins_pack(I_RET, C_NONE)   },
-	{"pushl",  ins_pack(I_PUSHL, C_NONE) },
-	{"popl",   ins_pack(I_POPL, C_NONE) },
-	{".long",  ins_pack(I_LONG, C_NONE)  },
-	{".pos",   ins_pack(I_POS, C_NONE)   },
-	{".align", ins_pack(I_ALIGN, C_NONE) },
-	{NULL,     ins_pack(I_ERR, C_NONE)   }
+	{"halt",   pack_ins(I_HALT, C_NONE)  },
+	{"nop",    pack_ins(I_NOP, C_NONE)   },
+	{"rrmovl", pack_ins(I_RRMOVL, C_NONE)},
+	{"cmovle", pack_ins(I_RRMOVL, C_LE)  },
+	{"cmovl",  pack_ins(I_RRMOVL, C_L)   },
+	{"cmove",  pack_ins(I_RRMOVL, C_E)   },
+	{"cmovne", pack_ins(I_RRMOVL, C_NE)  },
+	{"cmovge", pack_ins(I_RRMOVL, C_GE)  },
+	{"cmovg",  pack_ins(I_RRMOVL, C_G)   },
+	{"irmovl", pack_ins(I_IRMOVL, C_NONE)},
+	{"rmmovl", pack_ins(I_RMMOVL, C_NONE)},
+	{"mrmovl", pack_ins(I_MRMOVL, C_NONE)},
+	{"addl",   pack_ins(I_ALU, A_ADD)    },
+	{"subl",   pack_ins(I_ALU, A_SUB)    },
+	{"andl",   pack_ins(I_ALU, A_AND)    },
+	{"xorl",   pack_ins(I_ALU, A_XOR)    },
+	{"jmp",    pack_ins(I_JXX, C_NONE)   },
+	{"jle",    pack_ins(I_JXX, C_LE)     },
+	{"jl",     pack_ins(I_JXX, C_L)      },
+	{"je",     pack_ins(I_JXX, C_E)      },
+	{"jne",    pack_ins(I_JXX, C_NE)     },
+	{"jge",    pack_ins(I_JXX, C_GE)     },
+	{"jg",     pack_ins(I_JXX, C_G)      },
+	{"call",   pack_ins(I_CALL, C_NONE)  },
+	{"ret",    pack_ins(I_RET, C_NONE)   },
+	{"pushl",  pack_ins(I_PUSHL, C_NONE) },
+	{"popl",   pack_ins(I_POPL, C_NONE) },
+	{".long",  pack_ins(I_LONG, C_NONE)  },
+	{".pos",   pack_ins(I_POS, C_NONE)   },
+	{".align", pack_ins(I_ALIGN, C_NONE) },
+	{NULL,     pack_ins(I_ERR, C_NONE)   }
 };
 
 ins_t parse_instr(const char *str)
@@ -200,12 +200,12 @@ static const char *register_name(regid_t regid)
 
 const char *regA_name(reg_t reg)
 {
-	return register_name(reg_rA(reg));
+	return register_name(rA_of_reg(reg));
 }
 
 const char *regB_name(reg_t reg)
 {
-	return register_name(reg_rB(reg));
+	return register_name(rB_of_reg(reg));
 }
 
 typedef unsigned int flag_t;
@@ -232,13 +232,13 @@ static void fill_i_m_r(char **args, reg_t *regp, imm_t *immp);
 static void fill_i_v(char **args, reg_t *regp, imm_t *immp);
 static void fill_i_r(char **args, reg_t *regp, imm_t *immp);
 
-#define code_flag(code) (Y86_CODE_INFO[code].flag)
-#define code_argn(code) (Y86_CODE_INFO[code].argn)
-#define code_filler(code) (Y86_CODE_INFO[code].filler)
+#define flag_of_code(code) (Y86_CODE_INFO[code].flag)
+#define argn_of_code(code) (Y86_CODE_INFO[code].argn)
+#define filler_of_code(code) (Y86_CODE_INFO[code].filler)
 
-#define ins_flag(ins) code_flag(ins_code(ins))
-#define ins_argn(ins) code_argn(ins_code(ins))
-#define ins_filler(ins) code_filler(ins_code(ins))
+#define flag_of_ins(ins) flag_of_code(code_of_ins(ins))
+#define argn_of_ins(ins) argn_of_code(code_of_ins(ins))
+#define filler_of_ins(ins) filler_of_code(code_of_ins(ins))
 
 struct code_info {
 	flag_t flag;
@@ -267,17 +267,17 @@ static const struct code_info Y86_CODE_INFO[] = {
 
 code_t instr_code(ins_t ins)
 {
-	return ins_code(ins);
+	return code_of_ins(ins);
 }
 
 size_t instr_argn(ins_t ins)
 {
-	return ins_argn(ins);
+	return argn_of_ins(ins);
 }
 
 size_t assembler(ins_t ins, byte *base, char **args)
 {
-	flag_t flag = ins_flag(ins);
+	flag_t flag = flag_of_ins(ins);
 	ins_t *insp = NULL;
 	reg_t *regp = NULL;
 	imm_t *immp = NULL;
@@ -299,7 +299,7 @@ size_t assembler(ins_t ins, byte *base, char **args)
 	if (insp != NULL)
 		*insp = ins;
 
-	ins_filler(ins)(args, regp, immp);
+	filler_of_ins(ins)(args, regp, immp);
 	return ptr - base;
 }
 
@@ -371,23 +371,23 @@ static void fill_i(char **args, reg_t *regp, imm_t *immp)
 
 static void fill_i_r_r(char **args, reg_t *regp, imm_t *immp)
 {
-	*regp = reg_pack(parse_register(args[1]), parse_register(args[2]));
+	*regp = pack_reg(parse_register(args[1]), parse_register(args[2]));
 }
 
 static void fill_i_v_r(char **args, reg_t *regp, imm_t *immp)
 {
 	parse_constant(args[1], immp);
-	*regp = reg_pack(R_NONE, parse_register(args[2]));
+	*regp = pack_reg(R_NONE, parse_register(args[2]));
 }
 
 static void fill_i_r_m(char **args, reg_t *regp, imm_t *immp)
 {
-	*regp = reg_pack(parse_register(args[1]), parse_memory(args[2], immp));
+	*regp = pack_reg(parse_register(args[1]), parse_memory(args[2], immp));
 }
 
 static void fill_i_m_r(char **args, reg_t *regp, imm_t *immp)
 {
-	*regp = reg_pack(parse_register(args[2]), parse_memory(args[1], immp));
+	*regp = pack_reg(parse_register(args[2]), parse_memory(args[1], immp));
 }
 
 static void fill_i_v(char **args, reg_t *regp, imm_t *immp)
@@ -397,5 +397,5 @@ static void fill_i_v(char **args, reg_t *regp, imm_t *immp)
 
 static void fill_i_r(char **args, reg_t *regp, imm_t *immp)
 {
-	*regp = reg_pack(parse_register(args[1]), R_NONE);
+	*regp = pack_reg(parse_register(args[1]), R_NONE);
 }
