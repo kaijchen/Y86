@@ -1,14 +1,16 @@
 #include "Y86ASM.h"
+#include <stdio.h>
+#include <string.h>
 
-#define MAXLINE 2000
+#define BINSIZE 4000
 #define BUFSIZE 1000
 #define MAXARGS 8
 
-static char *line_args[MAXLINE][MAXARGS];
-static size_t line_argn[MAXLINE];
+static uint8 mem[BINSIZE];
 
-static size_t parse_line(char *str, char **args)
+static char **parse_line(char *str)
 {
+	static char *args[MAXARGS];
 	char *token;
 	size_t n = 0;
 
@@ -22,136 +24,85 @@ static size_t parse_line(char *str, char **args)
 		if (token[0] == '\0')
 			continue;
 
-		args[n++] = strdup(token);
+		args[n++] = token;
 	}
 
 	/* null terminate */
 	args[n] = NULL;
 
-	return n;
+	return args;
 }
 
-static size_t preprocesser(FILE *in)
+static size_t assembler(FILE *in)
 {
 	char buf[BUFSIZE];
 	char **argp;
-	size_t len, argn, line;
-	uint32 file_offset, tmp, imm;
-	uint8 ins, type, flag, size;
+	size_t len, line;
+	uint32 offset, tmp, imm, size;
+	uint8 ins, type, argn;
 
-	for (line = 0; line < MAXLINE
-			&& fgets(buf, BUFSIZE, in) != NULL; line++) {
+	uint32 *immp;
+	uint8 *regp;
+	uint8 *insp;
 
-		argn = line_argn[line] = parse_line(buf, line_args[line]);
-		argp = line_args[line];
+	for (line = 0; fgets(buf, BUFSIZE, in) != NULL; line++) {
 
-		if (argn == 0)
+		argp = parse_line(buf);
+
+		if (*argp == NULL)
 			continue;
 
 		len = strlen(argp[0]);
 		if (argp[0][len - 1] == ':') {	/* symbol */
 			argp[0][len - 1] = '\0';
-			add_symbol(argp[0], file_offset);
-			argp[0][len - 1] = ':';
-			argp++;
-			if (--argn == 0)
+			add_symbol(argp[0], offset);
+			if (*++argp == NULL)
 				continue;
 		}
 
 		ins = parse_instruction(argp[0]);
-		type = unpack_h(ins);
-		flag = Y86_INS_TYPE[type].flag;
-		size = code_size(flag);
+		type = ins_type(ins);
+		size = code_size(ins);
 
-		if (argn != Y86_INS_TYPE[type].argn)
+		for (argn = 0; argp[argn] != NULL; argn++)
+			;
+		if (argn != arg_number(ins))
 			error("instruction syntax error", argp[0]);
-
-		/* Y86_INS_TYPE[type].parse(argp, &reg, &imm); */
 
 		switch (type) {
 		case I_ERR:
 			break;
 		case I_POS:
 			imm = parse_number(argp[1]);
-			file_offset = imm;
+			offset = imm;
 			break;
 		case I_ALIGN:
 			imm = parse_number(argp[1]);
-			if ((tmp = file_offset % imm) != 0)
-				file_offset += imm - tmp;
+			if ((tmp = offset % imm) != 0)
+				offset += imm - tmp;
 			break;
 		default:
-			file_offset += size;
-			/**
-			 * code = encode(flag, ins, reg, imm);
-			 * for (ptr = (uint8 *)&code; size--; ptr++)
-			 *      printf(size ? "%02x " : "%02x\n", ptr[0]);
-			 */
+			offset += size;
+			code_parser(ins, &mem[offset], &insp, &regp, &immp);
+			code_writer(ins, argp, insp, regp, immp);
 		}
 	}
 	return line;
 }
 
-static void assembler(FILE *out, size_t maxline)
+static void writeout(FILE *out)
 {
-	char **argp;
-	size_t len, argn, line;
-	uint64 code;
-	uint32 tmp, imm;
-	uint8 ins, reg, type, flag, size;
-	uint8 *ptr;
-
-	for (line = 0; line < maxline; line++) {
-
-		argn = line_argn[line];
-		argp = line_args[line];
-
-		if (argn == 0)
-			continue;
-
-		len = strlen(argp[0]);
-		if (argp[0][len - 1] == ':') {	/* symbol */
-			argp++;
-			if (--argn == 0)
-				continue;
-		}
-
-		ins = parse_instruction(argp[0]);
-		type = unpack_h(ins);
-		flag = Y86_INS_TYPE[type].flag;
-		size = code_size(flag);
-
-		if (argn != Y86_INS_TYPE[type].argn)
-			error("instruction syntax error", argp[0]);
-
-		Y86_INS_TYPE[type].parse(argp, &reg, &imm);
-
-		switch (type) {
-		case I_ERR:
-			break;
-		case I_POS:
-			fseek(out, imm, SEEK_SET);
-			break;
-		case I_ALIGN:
-			if ((tmp = ftell(out) % imm) != 0)
-				fseek(out, imm - tmp, SEEK_CUR);
-			break;
-		default:
-			code = encode(flag, ins, reg, imm);
-			for (ptr = (uint8 *)&code; size--; ptr++) {
-			     printf(size ? "%02x " : "%02x\n", ptr[0]);
-			     putc(ptr[0], out);
-			}
-		}
-	}
+	return;
 }
 
 int main(int argc, char *argv[])
 {
 	FILE *fileout;
 
+	assembler(stdin);
+
 	fileout = fopen("y.out", "w");
-	assembler(fileout, preprocesser(stdin));
+	writeout(fileout);
 	fclose(fileout);
 	exit(EXIT_SUCCESS);
 }
