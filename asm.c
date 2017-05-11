@@ -1,4 +1,4 @@
-#include "Y86ASM.h"
+#include "lib/Y86.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -6,7 +6,10 @@
 #define BUFSIZE 1000
 #define MAXARGS 8
 
-static uint8 mem[BINSIZE];
+#define max(x, y) ((x) < (y) ? (y) : (x))
+
+static byte mem[BINSIZE];
+static size_t max_offset;
 
 static char **parse_line(char *str)
 {
@@ -33,17 +36,14 @@ static char **parse_line(char *str)
 	return args;
 }
 
-static size_t assembler(FILE *in)
+static void driver(FILE *in)
 {
 	char buf[BUFSIZE];
 	char **argp;
-	size_t len, line;
-	uint32 offset, tmp, imm, size;
-	uint8 ins, type, argn;
-
-	uint32 *immp;
-	uint8 *regp;
-	uint8 *insp;
+	size_t len, line, offset, argn;
+	imm_t tmp, imm;
+	ins_t ins;
+	code_t code;
 
 	for (line = 0; fgets(buf, BUFSIZE, in) != NULL; line++) {
 
@@ -60,16 +60,15 @@ static size_t assembler(FILE *in)
 				continue;
 		}
 
-		ins = parse_instruction(argp[0]);
-		type = ins_type(ins);
-		size = code_size(ins);
+		ins = parse_instr(argp[0]);
+		code = instr_code(ins);
 
 		for (argn = 0; argp[argn] != NULL; argn++)
 			;
-		if (argn != arg_number(ins))
-			error("instruction syntax error", argp[0]);
+		if (argn != instr_argn(ins))
+			error("instruction syntax error", "%s", argp[0]);
 
-		switch (type) {
+		switch (code) {
 		case I_ERR:
 			break;
 		case I_POS:
@@ -82,24 +81,25 @@ static size_t assembler(FILE *in)
 				offset += imm - tmp;
 			break;
 		default:
-			offset += size;
-			code_parser(ins, &mem[offset], &insp, &regp, &immp);
-			code_writer(ins, argp, insp, regp, immp);
+			offset += assembler(ins, &mem[offset], argp);
 		}
+
+		max_offset = max(offset, max_offset);
 	}
-	return line;
 }
 
 static void writeout(FILE *out)
 {
-	return;
+	for (size_t i = 0; i < max_offset; i++)
+		putc(mem[i], out);
 }
 
 int main(int argc, char *argv[])
 {
 	FILE *fileout;
 
-	assembler(stdin);
+	max_offset = 0;
+	driver(stdin);
 
 	fileout = fopen("y.out", "w");
 	writeout(fileout);
