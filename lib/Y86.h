@@ -65,7 +65,6 @@ typedef enum cond {
 extern void add_symbol(const char *symbol, imm_t value);
 
 extern size_t instr_argn(ins_t ins);
-extern size_t instr_size(ins_t ins);
 extern code_t instr_code(ins_t ins);
 
 extern size_t assembler(ins_t ins, byte *base, char **args);

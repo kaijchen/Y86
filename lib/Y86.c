@@ -224,14 +224,6 @@ enum Y86_SECTION_SIZE {
 	S_IMM	= sizeof(imm_t),
 };
 
-#define section_size(flag, SECTION)		\
-	((flag & F_##SECTION) ? S_##SECTION : 0)
-
-#define flag_size(flag) 			\
-	  (section_size(flag, INS)		\
-	 + section_size(flag, REG)		\
-	 + section_size(flag, IMM))
-
 static void fill_i(char **args, reg_t *regp, imm_t *immp);
 static void fill_i_r_r(char **args, reg_t *regp, imm_t *immp);
 static void fill_i_v_r(char **args, reg_t *regp, imm_t *immp);
@@ -281,13 +273,6 @@ code_t instr_code(ins_t ins)
 size_t instr_argn(ins_t ins)
 {
 	return ins_argn(ins);
-}
-
-size_t instr_size(ins_t ins)
-{
-	flag_t flag = ins_flag(ins);
-
-	return flag_size(flag);
 }
 
 size_t assembler(ins_t ins, byte *base, char **args)
