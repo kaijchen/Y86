@@ -7,7 +7,7 @@ static LIST_HEAD(symbol_head);		/* symbol list head */
 
 struct immp_entry {
 	imm_t *immp;
-	struct list_head immp_list;		/* immp list */
+	struct list_head immp_list;	/* immp list */
 };
 
 struct symbol_entry {
@@ -260,9 +260,9 @@ static const struct code_info Y86_CODE_INFO[] = {
 	{F_INS|F_REG,       2, fill_i_r  },	/* A pushl */
 	{F_INS|F_REG,       2, fill_i_r  },	/* B popl */
 	{F_IMM,             2, fill_i_v  },	/* C .long */
-	{F_NONE,            2, NULL       },	/* D .pos */
-	{F_NONE,            2, NULL       },	/* E .align */
-	{F_NONE,            0, NULL       },	/* F ERROR */
+	{F_NONE,            2, NULL      },	/* D .pos */
+	{F_NONE,            2, NULL      },	/* E .align */
+	{F_NONE,            0, NULL      },	/* F ERROR */
 };
 
 code_t instr_code(ins_t ins)
