@@ -211,9 +211,9 @@ const char *regB_name(reg_t reg)
 typedef unsigned int flag_t;
 
 enum Y86_SECTION_FLAG {
-	F_NONE	= 0, 
-	F_INS	= (1 << 0), 
-	F_REG	= (1 << 1), 
+	F_NONE	= 0,
+	F_INS	= (1 << 0),
+	F_REG	= (1 << 1),
 	F_IMM	= (1 << 2),
 };
 
