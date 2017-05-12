@@ -2,11 +2,6 @@
 #define _Y86ASM_
 
 #include <stdlib.h>
-#include <stdio.h>
-
-#define error(message, syntax, value)			\
-	fprintf(stderr, "Error: %s: %s - "syntax"\n",	\
-			__func__, message, value)
 
 typedef unsigned int imm_t;
 typedef unsigned char reg_t;

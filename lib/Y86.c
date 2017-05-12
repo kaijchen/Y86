@@ -1,7 +1,12 @@
 #include "Y86.h"
 #include "list.h"
 #include <ctype.h>
+#include <stdio.h>
 #include <string.h>
+
+#define error(message, syntax, value)			\
+	fprintf(stderr, "Error: %s: %s - "syntax"\n",	\
+			__func__, message, value)
 
 static LIST_HEAD(symbol_head);		/* symbol list head */
 
