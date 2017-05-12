@@ -8,7 +8,7 @@
 
 #define max(x, y) ((x) < (y) ? (y) : (x))
 
-static byte mem[BINSIZE];
+static byte binary[BINSIZE];
 static size_t max_offset;
 
 static char **parse_line(char *str)
@@ -40,10 +40,7 @@ static void driver(FILE *in)
 {
 	char buf[BUFSIZE];
 	char **argp;
-	size_t len, line, offset, argn;
-	imm_t tmp, imm;
-	ins_t ins;
-	code_t code;
+	size_t len, line, offset;
 
 	for (line = 0; fgets(buf, BUFSIZE, in) != NULL; line++) {
 
@@ -60,30 +57,7 @@ static void driver(FILE *in)
 				continue;
 		}
 
-		ins = parse_instr(argp[0]);
-		code = instr_code(ins);
-
-		for (argn = 0; argp[argn] != NULL; argn++)
-			;
-		if (argn != instr_argn(ins))
-			error("instruction syntax error", "%s", argp[0]);
-
-		switch (code) {
-		case I_ERR:
-			break;
-		case I_POS:
-			imm = parse_number(argp[1]);
-			offset = imm;
-			break;
-		case I_ALIGN:
-			imm = parse_number(argp[1]);
-			if ((tmp = offset % imm) != 0)
-				offset += imm - tmp;
-			break;
-		default:
-			offset += assembler(ins, &mem[offset], argp);
-		}
-
+		offset = assembler(argp, binary);
 		max_offset = max(offset, max_offset);
 	}
 }
@@ -91,7 +65,7 @@ static void driver(FILE *in)
 static void writeout(FILE *out)
 {
 	for (size_t i = 0; i < max_offset; i++)
-		putc(mem[i], out);
+		putc(binary[i], out);
 }
 
 int main(int argc, char *argv[])

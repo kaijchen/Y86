@@ -133,7 +133,7 @@ static const struct ins_dict Y86_INS_DICT[] = {
 	{NULL,     pack_ins(I_ERR, C_NONE)   }
 };
 
-ins_t parse_instr(const char *str)
+static ins_t parse_ins(const char *str)
 {
 	const struct ins_dict *ptr;
 
@@ -174,7 +174,7 @@ static const struct regid_dict Y86_REGID_DICT[] = {
 	{NULL, R_ERR},
 };
 
-static regid_t parse_register(const char *str)
+static regid_t parse_regid(const char *str)
 {
 	const struct regid_dict *ptr;
 
@@ -232,78 +232,87 @@ static void fill_i_m_r(char **args, reg_t *regp, imm_t *immp);
 static void fill_i_v(char **args, reg_t *regp, imm_t *immp);
 static void fill_i_r(char **args, reg_t *regp, imm_t *immp);
 
+static size_t size_pos(char **args, size_t offset);
+static size_t size_align(char **args, size_t offset);
+
 #define flag_of_code(code) (Y86_CODE_INFO[code].flag)
 #define argn_of_code(code) (Y86_CODE_INFO[code].argn)
 #define filler_of_code(code) (Y86_CODE_INFO[code].filler)
-
-#define flag_of_ins(ins) flag_of_code(code_of_ins(ins))
-#define argn_of_ins(ins) argn_of_code(code_of_ins(ins))
-#define filler_of_ins(ins) filler_of_code(code_of_ins(ins))
+#define sizer_of_code(code) (Y86_CODE_INFO[code].sizer)
 
 struct code_info {
 	flag_t flag;
 	size_t argn;
 	void (*filler)(char **, reg_t *, imm_t *);
+	size_t (*sizer)(char **, size_t);
 };
 
 static const struct code_info Y86_CODE_INFO[] = {
-	{F_INS,             1, fill_i    },	/* 0 halt */
-	{F_INS,             1, fill_i    },	/* 1 nop */
-	{F_INS|F_REG,       3, fill_i_r_r},	/* 2 rrmovl cmovxx */
-	{F_INS|F_REG|F_IMM, 3, fill_i_v_r},	/* 3 irmovl */
-	{F_INS|F_REG|F_IMM, 3, fill_i_r_m},	/* 4 rmmovl */
-	{F_INS|F_REG|F_IMM, 3, fill_i_m_r},	/* 5 mrmovl */
-	{F_INS|F_REG,       3, fill_i_r_r},	/* 6 opl */
-	{F_INS|F_IMM,       2, fill_i_v  },	/* 7 jxx */
-	{F_INS|F_IMM,       2, fill_i_v  },	/* 8 call */
-	{F_INS,             1, fill_i    },	/* 9 ret */
-	{F_INS|F_REG,       2, fill_i_r  },	/* A pushl */
-	{F_INS|F_REG,       2, fill_i_r  },	/* B popl */
-	{F_IMM,             2, fill_i_v  },	/* C .long */
-	{F_NONE,            2, NULL      },	/* D .pos */
-	{F_NONE,            2, NULL      },	/* E .align */
-	{F_NONE,            0, NULL      },	/* F ERROR */
+	{F_INS,             1, fill_i,     NULL      }, /* 0 halt */
+	{F_INS,             1, fill_i,     NULL      }, /* 1 nop */
+	{F_INS|F_REG,       3, fill_i_r_r, NULL      }, /* 2 rrmovl cmovxx */
+	{F_INS|F_REG|F_IMM, 3, fill_i_v_r, NULL      }, /* 3 irmovl */
+	{F_INS|F_REG|F_IMM, 3, fill_i_r_m, NULL      }, /* 4 rmmovl */
+	{F_INS|F_REG|F_IMM, 3, fill_i_m_r, NULL      }, /* 5 mrmovl */
+	{F_INS|F_REG,       3, fill_i_r_r, NULL      }, /* 6 opl */
+	{F_INS|F_IMM,       2, fill_i_v,   NULL      }, /* 7 jxx */
+	{F_INS|F_IMM,       2, fill_i_v,   NULL      }, /* 8 call */
+	{F_INS,             1, fill_i,     NULL      }, /* 9 ret */
+	{F_INS|F_REG,       2, fill_i_r,   NULL      }, /* A pushl */
+	{F_INS|F_REG,       2, fill_i_r,   NULL      }, /* B popl */
+	{F_IMM,             2, fill_i_v,   NULL      }, /* C .long */
+	{F_NONE,            2, NULL,       size_pos  }, /* D .pos */
+	{F_NONE,            2, NULL,       size_align}, /* E .align */
+	{F_NONE,            0, NULL,       NULL      }, /* F ERROR */
 };
 
-code_t instr_code(ins_t ins)
+size_t assembler(char **args, byte *base)
 {
-	return code_of_ins(ins);
-}
-
-size_t instr_argn(ins_t ins)
-{
-	return argn_of_ins(ins);
-}
-
-size_t assembler(ins_t ins, byte *base, char **args)
-{
-	flag_t flag = flag_of_ins(ins);
+	static size_t offset = 0;	/* will be init only once */
+	ins_t ins = parse_ins(args[0]);
+	code_t code = code_of_ins(ins);
+	flag_t flag = flag_of_code(code);
 	ins_t *insp = NULL;
 	reg_t *regp = NULL;
 	imm_t *immp = NULL;
-	byte *ptr = base;
+	byte *pos = base + offset;
+	size_t cnt;
+
+	for (cnt = 0; args[cnt] != NULL; cnt++)
+		;
+	if (cnt != argn_of_code(code))
+		error("instruction syntax error", "%s", args[0]);
 
 	if ((flag & F_INS)) {
-		insp = (ins_t *)ptr;
-		ptr = (byte *)(insp + 1);
+		insp = (ins_t *)pos;
+		pos = (byte *)(insp + 1);
 	}
 	if ((flag & F_REG)) {
-		regp = (reg_t *)ptr;
-		ptr = (byte *)(regp + 1);
+		regp = (reg_t *)pos;
+		pos = (byte *)(regp + 1);
 	}
 	if ((flag & F_IMM)) {
-		immp = (imm_t *)ptr;
-		ptr = (byte *)(immp + 1);
+		immp = (imm_t *)pos;
+		pos = (byte *)(immp + 1);
 	}
 
+	/* fill ins */
 	if (insp != NULL)
 		*insp = ins;
 
-	filler_of_ins(ins)(args, regp, immp);
-	return ptr - base;
+	/* fill other sections */
+	if (filler_of_code(code) != NULL)
+		filler_of_code(code)(args, regp, immp);
+
+	if (sizer_of_code(code) != NULL)
+		offset = sizer_of_code(code)(args, offset);
+	else
+		offset = pos - base;
+
+	return offset;
 }
 
-imm_t parse_number(const char *str)
+static imm_t parse_number(const char *str)
 {
 	imm_t dec, hex;
 
@@ -316,7 +325,7 @@ imm_t parse_number(const char *str)
 	return dec == 0 ? hex : dec;
 }
 
-static void parse_constant(const char *str, imm_t *immp)
+static void fill_constant(const char *str, imm_t *immp)
 {
 	if (str[0] == '\0')
 		*immp = 0;
@@ -346,7 +355,7 @@ static regid_t parse_memory(char *str, imm_t *immp)
 	*y = '\0';
 
 	*immp = parse_number(str);
-	regid = parse_register(x + 1);
+	regid = parse_regid(x + 1);
 
 	*x = '(';
 	*y = ')';
@@ -355,7 +364,8 @@ static regid_t parse_memory(char *str, imm_t *immp)
 }
 
 /**
- * fillers
+ * fillers(args, regp, immp)
+ *
  *  _i: instruction
  *  _r: register
  *  _v: constant
@@ -371,31 +381,50 @@ static void fill_i(char **args, reg_t *regp, imm_t *immp)
 
 static void fill_i_r_r(char **args, reg_t *regp, imm_t *immp)
 {
-	*regp = pack_reg(parse_register(args[1]), parse_register(args[2]));
+	*regp = pack_reg(parse_regid(args[1]), parse_regid(args[2]));
 }
 
 static void fill_i_v_r(char **args, reg_t *regp, imm_t *immp)
 {
-	parse_constant(args[1], immp);
-	*regp = pack_reg(R_NONE, parse_register(args[2]));
+	fill_constant(args[1], immp);
+	*regp = pack_reg(R_NONE, parse_regid(args[2]));
 }
 
 static void fill_i_r_m(char **args, reg_t *regp, imm_t *immp)
 {
-	*regp = pack_reg(parse_register(args[1]), parse_memory(args[2], immp));
+	*regp = pack_reg(parse_regid(args[1]), parse_memory(args[2], immp));
 }
 
 static void fill_i_m_r(char **args, reg_t *regp, imm_t *immp)
 {
-	*regp = pack_reg(parse_register(args[2]), parse_memory(args[1], immp));
+	*regp = pack_reg(parse_regid(args[2]), parse_memory(args[1], immp));
 }
 
 static void fill_i_v(char **args, reg_t *regp, imm_t *immp)
 {
-	parse_constant(args[1], immp);
+	fill_constant(args[1], immp);
 }
 
 static void fill_i_r(char **args, reg_t *regp, imm_t *immp)
 {
-	*regp = pack_reg(parse_register(args[1]), R_NONE);
+	*regp = pack_reg(parse_regid(args[1]), R_NONE);
+}
+
+static size_t size_pos(char **args, size_t offset)
+{
+	imm_t imm = parse_number(args[1]);
+
+	offset = imm;
+	return offset;
+}
+
+static size_t size_align(char **args, size_t offset)
+{
+	imm_t imm = parse_number(args[1]);
+	size_t tmp = offset % imm;
+
+	if (tmp != 0)
+		offset += imm - tmp;
+
+	return offset;
 }
