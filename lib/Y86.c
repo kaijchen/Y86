@@ -222,13 +222,6 @@ enum Y86_SECTION_FLAG {
 	F_IMM	= (1 << 2),
 };
 
-enum Y86_SECTION_SIZE {
-	S_NONE	= 0,
-	S_INS	= sizeof(ins_t),
-	S_REG	= sizeof(reg_t),
-	S_IMM	= sizeof(imm_t),
-};
-
 static void fill_i(char **args, reg_t *regp, imm_t *immp);
 static void fill_i_r_r(char **args, reg_t *regp, imm_t *immp);
 static void fill_i_v_r(char **args, reg_t *regp, imm_t *immp);
