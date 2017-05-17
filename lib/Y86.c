@@ -47,7 +47,7 @@ static struct symbol_entry *add_new_symbol(const char *symbol, imm_t value)
 	return sptr;
 }
 
-void add_symbol(const char *symbol, imm_t value)
+static void add_symbol(const char *symbol, imm_t value)
 {
 	struct symbol_entry *sptr;
 	struct immp_entry *iptr, *itmp;
@@ -267,19 +267,31 @@ static const struct code_info Y86_CODE_INFO[] = {
 size_t assembler(char **args, byte *base)
 {
 	static size_t offset = 0;	/* will be init only once */
-	ins_t ins = parse_ins(args[0]);
-	code_t code = code_of_ins(ins);
-	flag_t flag = flag_of_code(code);
+	static size_t bin_size = 0;
+	byte *pos = base + offset;
+	ins_t ins;
+	code_t code;
+	flag_t flag;
 	ins_t *insp = NULL;
 	reg_t *regp = NULL;
 	imm_t *immp = NULL;
-	byte *pos = base + offset;
-	size_t cnt;
+	size_t tmp;
 
-	for (cnt = 0; args[cnt] != NULL; cnt++)
-		;
-	if (cnt != argn_of_code(code))
-		error("instruction syntax error", "%s", args[0]);
+	if (args[0] == NULL)
+		return bin_size;
+
+	/* check symbol */
+	tmp = strlen(args[0]);
+	if (args[0][tmp - 1] == ':') {
+		args[0][tmp - 1] = '\0';
+		add_symbol(args[0], offset);
+		if (*++args == NULL)
+			return bin_size;
+	}
+
+	ins = parse_ins(args[0]);
+	code = code_of_ins(ins);
+	flag = flag_of_code(code);
 
 	if ((flag & F_INS)) {
 		insp = (ins_t *)pos;
@@ -294,20 +306,30 @@ size_t assembler(char **args, byte *base)
 		pos = (byte *)(immp + 1);
 	}
 
+	/* calculate write offset */
+	offset = bin_size = pos - base;
+
 	/* fill ins */
 	if (insp != NULL)
 		*insp = ins;
+
+	/* check argn */
+	for (tmp = 0; args[tmp] != NULL; tmp++)
+		;
+	if (tmp != argn_of_code(code)) {
+		error("instruction syntax error", "%s", args[0]);
+		return bin_size;
+	}
 
 	/* fill other sections */
 	if (filler_of_code(code) != NULL)
 		filler_of_code(code)(args, regp, immp);
 
+	/* some commands change offset */
 	if (sizer_of_code(code) != NULL)
 		offset = sizer_of_code(code)(args, offset);
-	else
-		offset = pos - base;
 
-	return offset;
+	return bin_size;
 }
 
 static imm_t parse_number(const char *str)

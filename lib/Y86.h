@@ -57,8 +57,6 @@ typedef enum cond {
 	C_G	= 0x6,
 } cond_t;
 
-extern void add_symbol(const char *symbol, imm_t value);
-
 extern size_t assembler(char **args, byte *base);
 
 extern const char *ins_name(ins_t ins);
