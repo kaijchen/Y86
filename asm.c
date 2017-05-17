@@ -19,7 +19,7 @@ static char **parse_line(char *str)
 
 	while ((token = strsep(&str, "\n\t ,")) != NULL) {
 
-		/* skip commits, ensure within limit */
+		/* skip comments, ensure within limit */
 		if (token[0] == '#' || n + 1 == MAXARGN)
 			break;
 
