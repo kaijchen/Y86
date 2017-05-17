@@ -266,9 +266,9 @@ static const struct code_info Y86_CODE_INFO[] = {
 
 size_t assembler(char **args, byte *base)
 {
-	static size_t offset = 0;	/* will be init only once */
-	static size_t bin_size = 0;
-	byte *pos = base + offset;
+	static size_t s_offset = 0;	/* at the start of next instruction */
+	static size_t e_offset = 0;	/* after the end of last instruction */
+	byte *pos = base + s_offset;
 	ins_t ins;
 	code_t code;
 	flag_t flag;
@@ -278,15 +278,15 @@ size_t assembler(char **args, byte *base)
 	size_t tmp;
 
 	if (args[0] == NULL)
-		return bin_size;
+		return e_offset;
 
 	/* check symbol */
 	tmp = strlen(args[0]);
 	if (args[0][tmp - 1] == ':') {
 		args[0][tmp - 1] = '\0';
-		add_symbol(args[0], offset);
+		add_symbol(args[0], s_offset);
 		if (*++args == NULL)
-			return bin_size;
+			return e_offset;
 	}
 
 	ins = parse_ins(args[0]);
@@ -306,8 +306,8 @@ size_t assembler(char **args, byte *base)
 		pos = (byte *)(immp + 1);
 	}
 
-	/* calculate write offset */
-	offset = bin_size = pos - base;
+	/* normally, next instruction follows the last */
+	s_offset = e_offset = pos - base;
 
 	/* fill ins */
 	if (insp != NULL)
@@ -318,18 +318,18 @@ size_t assembler(char **args, byte *base)
 		;
 	if (tmp != argn_of_code(code)) {
 		error("instruction syntax error", "%s", args[0]);
-		return bin_size;
+		return e_offset;
 	}
 
 	/* fill other sections */
 	if (filler_of_code(code) != NULL)
 		filler_of_code(code)(args, regp, immp);
 
-	/* some commands change offset */
+	/* command like .align and .pos changes s_offset */
 	if (sizer_of_code(code) != NULL)
-		offset = sizer_of_code(code)(args, offset);
+		s_offset = sizer_of_code(code)(args, e_offset);
 
-	return bin_size;
+	return e_offset;
 }
 
 static imm_t parse_number(const char *str)

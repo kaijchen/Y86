@@ -40,14 +40,14 @@ static void driver(FILE *in)
 {
 	char buf[BUFSIZE];
 	char **argp;
-	size_t w_offset;
+	size_t e_offset;
 
 	bin_size = 0;
 
 	while (fgets(buf, BUFSIZE, in) != NULL) {
 		argp = parse_line(buf);
-		w_offset = assembler(argp, binary);
-		bin_size = max(w_offset, bin_size);
+		e_offset = assembler(argp, binary);
+		bin_size = max(e_offset, bin_size);
 	}
 }
 
