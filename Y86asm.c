@@ -401,20 +401,14 @@ static void driver(FILE *in)
 	}
 }
 
-static void writeout(FILE *out)
-{
-	for (size_t i = 0; i < bin_size; i++)
-		putc(binary[i], out);
-}
-
 int main(int argc, char *argv[])
 {
-	FILE *fileout;
+	FILE *output;
 
 	driver(stdin);
 
-	fileout = fopen("y.out", "w");
-	writeout(fileout);
-	fclose(fileout);
+	output = fopen("y.out", "w");
+	fwrite(binary, sizeof(byte), bin_size, output);
+	fclose(output);
 	exit(EXIT_SUCCESS);
 }
