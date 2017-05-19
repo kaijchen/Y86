@@ -56,12 +56,12 @@ typedef enum ifun {
 #define unpack_l(c) ((c) & 0xF)
 
 #define pack_ins(icode, func) pack(icode, func)
-#define icode_of_ins(ins) unpack_h(ins)
-#define ifun_of_ins(ins) unpack_l(ins)
+#define ins_icode(ins) unpack_h(ins)
+#define ins_ifun(ins) unpack_l(ins)
 
 #define pack_reg(rA, rB) pack(rA, rB)
-#define rA_of_reg(reg) unpack_h(reg)
-#define rB_of_reg(reg) unpack_l(reg)
+#define reg_rA(reg) unpack_h(reg)
+#define reg_rB(reg) unpack_l(reg)
 
 extern regid_t parse_regid(const char *str);
 extern const char *regid_name(regid_t regid);

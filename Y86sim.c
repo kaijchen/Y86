@@ -25,14 +25,14 @@ static void run()
 		valP = PC;
 		ins = *(ins_t *)&M[valP];
 		valP += sizeof(ins);
-		icode = icode_of_ins(ins);
-		ifun = ifun_of_ins(ins);
+		icode = ins_icode(ins);
+		ifun = ins_ifun(ins);
 		printf("%04x %s", PC, ins_name(ins));
 		if (need_reg(icode)) {
 			reg = *(reg_t *)&M[valP];
-			if ((rA = rA_of_reg(reg)) != R_NONE)
+			if ((rA = reg_rA(reg)) != R_NONE)
 				printf(" %s", regid_name(rA));
-			if ((rB = rB_of_reg(reg)) != R_NONE)
+			if ((rB = reg_rB(reg)) != R_NONE)
 				printf(" %s", regid_name(rB));
 			valP += sizeof(reg);
 		}

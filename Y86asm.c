@@ -321,7 +321,7 @@ static val_t assembler(char **args, byte *base)
 
 	/* instruction */
 	ins = parse_ins(args[0]);
-	icode = icode_of_ins(ins);
+	icode = ins_icode(ins);
 
 	insp = (ins_t *)pos;
 	pos = (byte *)(insp + 1);
