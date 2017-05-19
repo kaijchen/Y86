@@ -20,40 +20,35 @@ typedef enum regid {
 	R_NONE	= 0xF,
 } regid_t;
 
-typedef enum code {
+typedef enum icode {
 	I_HALT		= 0x0,
 	I_NOP		= 0x1,
 	I_RRMOVL	= 0x2,
 	I_IRMOVL	= 0x3,
 	I_RMMOVL	= 0x4,
 	I_MRMOVL	= 0x5,
-	I_ALU		= 0x6,
+	I_OPL		= 0x6,
 	I_JXX		= 0x7,
 	I_CALL		= 0x8,
 	I_RET		= 0x9,
 	I_PUSHL		= 0xA,
 	I_POPL		= 0xB,
-	I_LONG		= 0xC,
-	I_POS		= 0xD,
-	I_ALIGN		= 0xE,
-} code_t;
+} icode_t;
 
-typedef enum alu {
+typedef enum ifun {
 	A_ADD	= 0x0,
 	A_SUB	= 0x1,
 	A_AND	= 0x2,
 	A_XOR	= 0x3,
-} alu_t;
 
-typedef enum cond {
-	C_NONE	= 0x0,
+	C_ALL	= 0x0,
 	C_LE	= 0x1,
 	C_L	= 0x2,
 	C_E	= 0x3,
 	C_NE	= 0x4,
 	C_GE	= 0x5,
 	C_G	= 0x6,
-} cond_t;
+} ifun_t;
 
 extern size_t assembler(char **args, byte *base);
 

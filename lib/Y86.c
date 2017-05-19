@@ -92,8 +92,8 @@ static void lookup_symbol(const char *symbol, imm_t *immp)
 #define unpack_h(c) (((c) >> 4) & 0xF)
 #define unpack_l(c) ((c) & 0xF)
 
-#define pack_ins(code, func) pack(code, func)
-#define code_of_ins(ins) unpack_h(ins)
+#define pack_ins(icode, func) pack(icode, func)
+#define icode_of_ins(ins) unpack_h(ins)
 #define func_of_ins(ins) unpack_l(ins)
 
 #define pack_reg(rA, rB) pack(rA, rB)
@@ -106,36 +106,33 @@ struct ins_dict {
 };
 
 static const struct ins_dict Y86_INS_DICT[] = {
-	{"halt",   pack_ins(I_HALT, C_NONE)  },
-	{"nop",    pack_ins(I_NOP, C_NONE)   },
-	{"rrmovl", pack_ins(I_RRMOVL, C_NONE)},
-	{"cmovle", pack_ins(I_RRMOVL, C_LE)  },
-	{"cmovl",  pack_ins(I_RRMOVL, C_L)   },
-	{"cmove",  pack_ins(I_RRMOVL, C_E)   },
-	{"cmovne", pack_ins(I_RRMOVL, C_NE)  },
-	{"cmovge", pack_ins(I_RRMOVL, C_GE)  },
-	{"cmovg",  pack_ins(I_RRMOVL, C_G)   },
-	{"irmovl", pack_ins(I_IRMOVL, C_NONE)},
-	{"rmmovl", pack_ins(I_RMMOVL, C_NONE)},
-	{"mrmovl", pack_ins(I_MRMOVL, C_NONE)},
-	{"addl",   pack_ins(I_ALU, A_ADD)    },
-	{"subl",   pack_ins(I_ALU, A_SUB)    },
-	{"andl",   pack_ins(I_ALU, A_AND)    },
-	{"xorl",   pack_ins(I_ALU, A_XOR)    },
-	{"jmp",    pack_ins(I_JXX, C_NONE)   },
-	{"jle",    pack_ins(I_JXX, C_LE)     },
-	{"jl",     pack_ins(I_JXX, C_L)      },
-	{"je",     pack_ins(I_JXX, C_E)      },
-	{"jne",    pack_ins(I_JXX, C_NE)     },
-	{"jge",    pack_ins(I_JXX, C_GE)     },
-	{"jg",     pack_ins(I_JXX, C_G)      },
-	{"call",   pack_ins(I_CALL, C_NONE)  },
-	{"ret",    pack_ins(I_RET, C_NONE)   },
-	{"pushl",  pack_ins(I_PUSHL, C_NONE) },
-	{"popl",   pack_ins(I_POPL, C_NONE) },
-	{".long",  pack_ins(I_LONG, C_NONE)  },
-	{".pos",   pack_ins(I_POS, C_NONE)   },
-	{".align", pack_ins(I_ALIGN, C_NONE) },
+	{"halt",   pack_ins(I_HALT, C_ALL)  },
+	{"nop",    pack_ins(I_NOP, C_ALL)   },
+	{"rrmovl", pack_ins(I_RRMOVL, C_ALL)},
+	{"cmovle", pack_ins(I_RRMOVL, C_LE) },
+	{"cmovl",  pack_ins(I_RRMOVL, C_L)  },
+	{"cmove",  pack_ins(I_RRMOVL, C_E)  },
+	{"cmovne", pack_ins(I_RRMOVL, C_NE) },
+	{"cmovge", pack_ins(I_RRMOVL, C_GE) },
+	{"cmovg",  pack_ins(I_RRMOVL, C_G)  },
+	{"irmovl", pack_ins(I_IRMOVL, C_ALL)},
+	{"rmmovl", pack_ins(I_RMMOVL, C_ALL)},
+	{"mrmovl", pack_ins(I_MRMOVL, C_ALL)},
+	{"addl",   pack_ins(I_OPL, A_ADD)   },
+	{"subl",   pack_ins(I_OPL, A_SUB)   },
+	{"andl",   pack_ins(I_OPL, A_AND)   },
+	{"xorl",   pack_ins(I_OPL, A_XOR)   },
+	{"jmp",    pack_ins(I_JXX, C_ALL)   },
+	{"jle",    pack_ins(I_JXX, C_LE)    },
+	{"jl",     pack_ins(I_JXX, C_L)     },
+	{"je",     pack_ins(I_JXX, C_E)     },
+	{"jne",    pack_ins(I_JXX, C_NE)    },
+	{"jge",    pack_ins(I_JXX, C_GE)    },
+	{"jg",     pack_ins(I_JXX, C_G)     },
+	{"call",   pack_ins(I_CALL, C_ALL)  },
+	{"ret",    pack_ins(I_RET, C_ALL)   },
+	{"pushl",  pack_ins(I_PUSHL, C_ALL) },
+	{"popl",   pack_ins(I_POPL, C_ALL)  },
 };
 
 static ins_t parse_ins(const char *str)
@@ -212,15 +209,6 @@ const char *regB_name(reg_t reg)
 	return register_name(rB_of_reg(reg));
 }
 
-typedef unsigned int flag_t;
-
-enum Y86_SECTION_FLAG {
-	F_NONE	= 0,
-	F_INS	= (1 << 0),
-	F_REG	= (1 << 1),
-	F_IMM	= (1 << 2),
-};
-
 static void fill_i(char **args, reg_t *regp, imm_t *immp);
 static void fill_i_r_r(char **args, reg_t *regp, imm_t *immp);
 static void fill_i_v_r(char **args, reg_t *regp, imm_t *immp);
@@ -229,38 +217,60 @@ static void fill_i_m_r(char **args, reg_t *regp, imm_t *immp);
 static void fill_i_v(char **args, reg_t *regp, imm_t *immp);
 static void fill_i_r(char **args, reg_t *regp, imm_t *immp);
 
-static size_t size_pos(char **args, size_t offset);
-static size_t size_align(char **args, size_t offset);
+#define argn_of_icode(icode) (Y86_ICODE_INFO[icode].argn)
+#define filler_of_icode(icode) (Y86_ICODE_INFO[icode].filler)
 
-#define flag_of_code(code) (Y86_CODE_INFO[code].flag)
-#define argn_of_code(code) (Y86_CODE_INFO[code].argn)
-#define filler_of_code(code) (Y86_CODE_INFO[code].filler)
-#define sizer_of_code(code) (Y86_CODE_INFO[code].sizer)
+static int has_reg_section(icode_t icode)
+{
+	switch (icode) {
+	case I_RRMOVL:
+	case I_IRMOVL:
+	case I_RMMOVL:
+	case I_MRMOVL:
+	case I_OPL:
+	case I_PUSHL:
+	case I_POPL:
+		return 1;
+	default:
+		return 0;
+	}
+}
 
-struct code_info {
-	flag_t flag;
+static int has_imm_section(icode_t icode)
+{
+	switch (icode) {
+	case I_IRMOVL:
+	case I_RMMOVL:
+	case I_MRMOVL:
+	case I_JXX:
+	case I_CALL:
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+struct icode_info {
 	size_t argn;
 	void (*filler)(char **, reg_t *, imm_t *);
-	size_t (*sizer)(char **, size_t);
 };
 
-static const struct code_info Y86_CODE_INFO[] = {
-	{F_INS,             1, fill_i,     NULL      }, /* 0 halt */
-	{F_INS,             1, fill_i,     NULL      }, /* 1 nop */
-	{F_INS|F_REG,       3, fill_i_r_r, NULL      }, /* 2 rrmovl cmovxx */
-	{F_INS|F_REG|F_IMM, 3, fill_i_v_r, NULL      }, /* 3 irmovl */
-	{F_INS|F_REG|F_IMM, 3, fill_i_r_m, NULL      }, /* 4 rmmovl */
-	{F_INS|F_REG|F_IMM, 3, fill_i_m_r, NULL      }, /* 5 mrmovl */
-	{F_INS|F_REG,       3, fill_i_r_r, NULL      }, /* 6 opl */
-	{F_INS|F_IMM,       2, fill_i_v,   NULL      }, /* 7 jxx */
-	{F_INS|F_IMM,       2, fill_i_v,   NULL      }, /* 8 call */
-	{F_INS,             1, fill_i,     NULL      }, /* 9 ret */
-	{F_INS|F_REG,       2, fill_i_r,   NULL      }, /* A pushl */
-	{F_INS|F_REG,       2, fill_i_r,   NULL      }, /* B popl */
-	{F_IMM,             2, fill_i_v,   NULL      }, /* C .long */
-	{F_NONE,            2, NULL,       size_pos  }, /* D .pos */
-	{F_NONE,            2, NULL,       size_align}, /* E .align */
+static const struct icode_info Y86_ICODE_INFO[] = {
+	{1, fill_i,    },	/* 0 halt */
+	{1, fill_i,    },	/* 1 nop */
+	{3, fill_i_r_r,},	/* 2 rrmovl */
+	{3, fill_i_v_r,},	/* 3 irmovl */
+	{3, fill_i_r_m,},	/* 4 rmmovl */
+	{3, fill_i_m_r,},	/* 5 mrmovl */
+	{3, fill_i_r_r,},	/* 6 opl */
+	{2, fill_i_v,  },	/* 7 jxx */
+	{2, fill_i_v,  },	/* 8 call */
+	{1, fill_i,    },	/* 9 ret */
+	{2, fill_i_r,  },	/* A pushl */
+	{2, fill_i_r,  },	/* B popl */
 };
+
+static imm_t parse_number(const char *str);
 
 size_t assembler(char **args, byte *base)
 {
@@ -268,8 +278,7 @@ size_t assembler(char **args, byte *base)
 	static size_t e_offset = 0;	/* after the end of last instruction */
 	byte *pos = base + s_offset;
 	ins_t ins;
-	code_t code;
-	flag_t flag;
+	icode_t icode;
 	ins_t *insp = NULL;
 	reg_t *regp = NULL;
 	imm_t *immp = NULL;
@@ -287,45 +296,59 @@ size_t assembler(char **args, byte *base)
 			return e_offset;
 	}
 
-	ins = parse_ins(args[0]);
-	code = code_of_ins(ins);
-	flag = flag_of_code(code);
-
-	if ((flag & F_INS)) {
-		insp = (ins_t *)pos;
-		pos = (byte *)(insp + 1);
+	/* check command */
+	if (args[0][0] == '.') {
+		if (args[1] == NULL || args[2] != NULL) {
+			error("wrong command syntax", "%s", args[0]);
+			exit(EXIT_FAILURE);
+		}
+		tmp = parse_number(args[1]);
+		if (strcmp(args[0], ".long") == 0) {
+			immp = (imm_t *)pos;
+			pos = (byte *)(immp + 1);
+			*immp = tmp;
+			s_offset = e_offset = pos - base;
+		} else if (strcmp(args[0], ".pos") == 0) {
+			s_offset = tmp;
+		} else if (strcmp(args[0], ".align") == 0) {
+			if (s_offset % tmp != 0)
+				s_offset += tmp - s_offset % tmp;
+		} else {
+			error("unknown command", "%s", args[0]);
+			exit(EXIT_FAILURE);
+		}
+		return e_offset;
 	}
-	if ((flag & F_REG)) {
+
+	/* instruction */
+	ins = parse_ins(args[0]);
+	icode = icode_of_ins(ins);
+
+	insp = (ins_t *)pos;
+	pos = (byte *)(insp + 1);
+	if (has_reg_section(icode)) {
 		regp = (reg_t *)pos;
 		pos = (byte *)(regp + 1);
 	}
-	if ((flag & F_IMM)) {
+	if (has_imm_section(icode)) {
 		immp = (imm_t *)pos;
 		pos = (byte *)(immp + 1);
 	}
 
-	/* normally, next instruction follows the last */
+	/* next instruction follows the last */
 	s_offset = e_offset = pos - base;
-
-	/* fill ins */
-	if (insp != NULL)
-		*insp = ins;
 
 	/* check argn */
 	for (tmp = 0; args[tmp] != NULL; tmp++)
 		;
-	if (tmp != argn_of_code(code)) {
+	if (tmp != argn_of_icode(icode)) {
 		error("wrong instruction syntax", "%s", args[0]);
 		exit(EXIT_FAILURE);
 	}
 
-	/* fill other sections */
-	if (filler_of_code(code) != NULL)
-		filler_of_code(code)(args, regp, immp);
-
-	/* command like .align and .pos changes s_offset */
-	if (sizer_of_code(code) != NULL)
-		s_offset = sizer_of_code(code)(args, e_offset);
+	/* fill sections */
+	*insp = ins;
+	filler_of_icode(icode)(args, regp, immp);
 
 	return e_offset;
 }
@@ -426,23 +449,4 @@ static void fill_i_v(char **args, reg_t *regp, imm_t *immp)
 static void fill_i_r(char **args, reg_t *regp, imm_t *immp)
 {
 	*regp = pack_reg(parse_regid(args[1]), R_NONE);
-}
-
-static size_t size_pos(char **args, size_t offset)
-{
-	imm_t imm = parse_number(args[1]);
-
-	offset = imm;
-	return offset;
-}
-
-static size_t size_align(char **args, size_t offset)
-{
-	imm_t imm = parse_number(args[1]);
-	size_t tmp = offset % imm;
-
-	if (tmp != 0)
-		offset += imm - tmp;
-
-	return offset;
 }
