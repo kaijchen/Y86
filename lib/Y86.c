@@ -106,7 +106,7 @@ const char *regid_name(regid_t regid)
 	exit(EXIT_FAILURE);
 }
 
-int has_reg_section(icode_t icode)
+int need_reg(icode_t icode)
 {
 	switch (icode) {
 	case I_RRMOVL:
@@ -122,7 +122,7 @@ int has_reg_section(icode_t icode)
 	}
 }
 
-int has_imm_section(icode_t icode)
+int need_val(icode_t icode)
 {
 	switch (icode) {
 	case I_IRMOVL:

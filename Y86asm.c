@@ -11,35 +11,35 @@
 
 static LIST_HEAD(symbol_head);		/* head of symbol list */
 
-struct immp_entry {
-	imm_t *immp;
-	struct list_head immp_list;	/* immp list node */
+struct valp_entry {
+	val_t *valp;
+	struct list_head valp_list;	/* valp list node */
 };
 
 struct symbol_entry {
 	char *symbol;
 	int valid;
-	imm_t value;
+	val_t value;
 	struct list_head symbol_list;	/* symbol list node */
-	struct list_head immp_head;	/* head of immp list of the symbol */
+	struct list_head valp_head;	/* head of valp list of the symbol */
 };
 
 /**
- * add_immp(immp)
+ * add_valp(valp)
  *
- * @immp: a pointer to where the value should be stored.
- * @immp_headp: a pointer to the head of the immp lint.
+ * @valp: a pointer to where the value should be stored.
+ * @valp_headp: a pointer to the head of the valp lint.
  * 
- * add the immp to the immp list.
+ * add the valp to the valp list.
  */
-static void add_immp(imm_t *immp, struct list_head *immp_headp)
+static void add_valp(val_t *valp, struct list_head *valp_headp)
 {
-	struct immp_entry *iptr = malloc(sizeof(*iptr));
+	struct valp_entry *iptr = malloc(sizeof(*iptr));
 
-	iptr->immp = immp;
+	iptr->valp = valp;
 
-	INIT_LIST_HEAD(&iptr->immp_list);
-	list_add(&iptr->immp_list, immp_headp);
+	INIT_LIST_HEAD(&iptr->valp_list);
+	list_add(&iptr->valp_list, valp_headp);
 }
 
 /**
@@ -48,7 +48,7 @@ static void add_immp(imm_t *immp, struct list_head *immp_headp)
  * @symbol: a string, name of the symbol (without trailing ':')
  *
  * add the symbol to the symbol list @symbol_head,
- * with an unassigned value and an empty immp list.
+ * with an unassigned value and an empty valp list.
  */
 static struct symbol_entry *add_symbol(const char *symbol)
 {
@@ -56,7 +56,7 @@ static struct symbol_entry *add_symbol(const char *symbol)
 
 	sptr->symbol = strdup(symbol);
 	sptr->valid = 0;
-	INIT_LIST_HEAD(&sptr->immp_head);
+	INIT_LIST_HEAD(&sptr->valp_head);
 
 	INIT_LIST_HEAD(&sptr->symbol_list);
 	list_add(&sptr->symbol_list, &symbol_head);
@@ -70,13 +70,13 @@ static struct symbol_entry *add_symbol(const char *symbol)
  * @value: a number assigned to that symbol.
  *
  * assign the symbol with the value,
- * for each immp in immp list of the symbol,
- * fill *immp with the value.
+ * for each valp in valp list of the symbol,
+ * fill *valp with the value.
  */
-static void assign_value(const char *symbol, imm_t value)
+static void assign_value(const char *symbol, val_t value)
 {
 	struct symbol_entry *sptr;
-	struct immp_entry *iptr, *itmp;
+	struct valp_entry *iptr, *itmp;
 
 	list_for_each_entry(sptr, &symbol_head, symbol_list)
 		if (strcmp(sptr->symbol, symbol) == 0)
@@ -93,24 +93,24 @@ static void assign_value(const char *symbol, imm_t value)
 	sptr->valid = 1;
 	sptr->value = value;
 
-	list_for_each_entry_safe(iptr, itmp, &sptr->immp_head, immp_list) {
-		*iptr->immp = value;
+	list_for_each_entry_safe(iptr, itmp, &sptr->valp_head, valp_list) {
+		*iptr->valp = value;
 		free(iptr);
 	}
 }
 
 /**
- * lookup_symbol(symbol, immp)
+ * lookup_symbol(symbol, valp)
  *
  * @symbol: a string, name of the symbol.
- * @immp: a pointer to where the value should be stored.
+ * @valp: a pointer to where the value should be stored.
  *
- * fill *immp with the value of the symbol.
+ * fill *valp with the value of the symbol.
  * if the symbol haven't been assigned with a value yet,
- * store immp in the immp list of the symbol,
+ * store valp in the valp list of the symbol,
  * which will be filled when a value is assigned to the symbol.
  */
-static void lookup_symbol(const char *symbol, imm_t *immp)
+static void lookup_symbol(const char *symbol, val_t *valp)
 {
 	struct symbol_entry *sptr;
 
@@ -122,15 +122,15 @@ static void lookup_symbol(const char *symbol, imm_t *immp)
 		sptr = add_symbol(symbol);
 
 	if (sptr->valid) {
-		*immp = sptr->value;
+		*valp = sptr->value;
 	} else {
-		add_immp(immp, &sptr->immp_head);
+		add_valp(valp, &sptr->valp_head);
 	}
 }
 
-static imm_t parse_number(const char *str)
+static val_t parse_number(const char *str)
 {
-	imm_t dec, hex;
+	val_t dec, hex;
 
 	if (str[0] == '\0')
 		return 0;
@@ -141,19 +141,19 @@ static imm_t parse_number(const char *str)
 	return dec == 0 ? hex : dec;
 }
 
-static void fill_constant(const char *str, imm_t *immp)
+static void fill_constant(const char *str, val_t *valp)
 {
 	if (str[0] == '\0')
-		*immp = 0;
+		*valp = 0;
 	else if (str[0] == '$')
-		*immp = parse_number(str + 1);
+		*valp = parse_number(str + 1);
 	else if (isdigit(str[0]) || str[0] == '-' || str[0] == '+')
-		*immp = parse_number(str);
+		*valp = parse_number(str);
 	else
-		lookup_symbol(str, immp);
+		lookup_symbol(str, valp);
 }
 
-static regid_t parse_memory(char *str, imm_t *immp)
+static regid_t parse_memory(char *str, val_t *valp)
 {
 	char *x, *y;
 	regid_t regid;
@@ -170,7 +170,7 @@ static regid_t parse_memory(char *str, imm_t *immp)
 	*x = '\0';
 	*y = '\0';
 
-	*immp = parse_number(str);
+	*valp = parse_number(str);
 	regid = parse_regid(x + 1);
 
 	*x = '(';
@@ -180,47 +180,47 @@ static regid_t parse_memory(char *str, imm_t *immp)
 }
 
 /**
- * fill__(args, regp, immp)
+ * fill__(args, regp, valp)
  *
  *  _i: instruction
  *  _r: register
  *  _v: constant
  *  _m: memory
  *
- * fill *regp and *immp according to args.
+ * fill *regp and *valp according to args.
  */
-static void fill_i(char **args, reg_t *regp, imm_t *immp)
+static void fill_i(char **args, reg_t *regp, val_t *valp)
 {
 	return;
 }
 
-static void fill_i_r_r(char **args, reg_t *regp, imm_t *immp)
+static void fill_i_r_r(char **args, reg_t *regp, val_t *valp)
 {
 	*regp = pack_reg(parse_regid(args[1]), parse_regid(args[2]));
 }
 
-static void fill_i_v_r(char **args, reg_t *regp, imm_t *immp)
+static void fill_i_v_r(char **args, reg_t *regp, val_t *valp)
 {
-	fill_constant(args[1], immp);
+	fill_constant(args[1], valp);
 	*regp = pack_reg(R_NONE, parse_regid(args[2]));
 }
 
-static void fill_i_r_m(char **args, reg_t *regp, imm_t *immp)
+static void fill_i_r_m(char **args, reg_t *regp, val_t *valp)
 {
-	*regp = pack_reg(parse_regid(args[1]), parse_memory(args[2], immp));
+	*regp = pack_reg(parse_regid(args[1]), parse_memory(args[2], valp));
 }
 
-static void fill_i_m_r(char **args, reg_t *regp, imm_t *immp)
+static void fill_i_m_r(char **args, reg_t *regp, val_t *valp)
 {
-	*regp = pack_reg(parse_regid(args[2]), parse_memory(args[1], immp));
+	*regp = pack_reg(parse_regid(args[2]), parse_memory(args[1], valp));
 }
 
-static void fill_i_v(char **args, reg_t *regp, imm_t *immp)
+static void fill_i_v(char **args, reg_t *regp, val_t *valp)
 {
-	fill_constant(args[1], immp);
+	fill_constant(args[1], valp);
 }
 
-static void fill_i_r(char **args, reg_t *regp, imm_t *immp)
+static void fill_i_r(char **args, reg_t *regp, val_t *valp)
 {
 	*regp = pack_reg(parse_regid(args[1]), R_NONE);
 }
@@ -232,7 +232,7 @@ static void fill_i_r(char **args, reg_t *regp, imm_t *immp)
  *
  * return argument number of the icode
  */
-static size_t icode_argn(icode_t icode)
+static int icode_argn(icode_t icode)
 {
 	switch (icode) {
 	case I_HALT:
@@ -256,7 +256,7 @@ static size_t icode_argn(icode_t icode)
 	}
 }
 
-static void (*icode_filler[])(char **, reg_t *, imm_t *) = {
+static void (*icode_filler[])(char **, reg_t *, val_t *) = {
 	fill_i,		/* 0 halt */
 	fill_i,		/* 1 nop */
 	fill_i_r_r,	/* 2 rrmovl */
@@ -271,17 +271,17 @@ static void (*icode_filler[])(char **, reg_t *, imm_t *) = {
 	fill_i_r,	/* B popl */
 };
 
-size_t assembler(char **args, byte *base)
+static val_t assembler(char **args, byte *base)
 {
-	static size_t s_offset = 0;	/* at the start of next instruction */
-	static size_t e_offset = 0;	/* after the end of last instruction */
+	static val_t s_offset = 0;	/* at the start of next instruction */
+	static val_t e_offset = 0;	/* after the end of last instruction */
 	byte *pos = base + s_offset;
 	ins_t ins;
 	icode_t icode;
 	ins_t *insp = NULL;
 	reg_t *regp = NULL;
-	imm_t *immp = NULL;
-	size_t tmp;
+	val_t *valp = NULL;
+	val_t tmp;
 
 	if (args[0] == NULL)
 		return e_offset;
@@ -303,9 +303,9 @@ size_t assembler(char **args, byte *base)
 		}
 		tmp = parse_number(args[1]);
 		if (strcmp(args[0], ".long") == 0) {
-			immp = (imm_t *)pos;
-			pos = (byte *)(immp + 1);
-			*immp = tmp;
+			valp = (val_t *)pos;
+			pos = (byte *)(valp + 1);
+			*valp = tmp;
 			s_offset = e_offset = pos - base;
 		} else if (strcmp(args[0], ".pos") == 0) {
 			s_offset = tmp;
@@ -325,13 +325,13 @@ size_t assembler(char **args, byte *base)
 
 	insp = (ins_t *)pos;
 	pos = (byte *)(insp + 1);
-	if (has_reg_section(icode)) {
+	if (need_reg(icode)) {
 		regp = (reg_t *)pos;
 		pos = (byte *)(regp + 1);
 	}
-	if (has_imm_section(icode)) {
-		immp = (imm_t *)pos;
-		pos = (byte *)(immp + 1);
+	if (need_val(icode)) {
+		valp = (val_t *)pos;
+		pos = (byte *)(valp + 1);
 	}
 
 	/* next instruction follows the last */
@@ -347,7 +347,7 @@ size_t assembler(char **args, byte *base)
 
 	/* fill sections */
 	*insp = ins;
-	icode_filler[icode](args, regp, immp);
+	icode_filler[icode](args, regp, valp);
 
 	return e_offset;
 }
@@ -359,13 +359,13 @@ size_t assembler(char **args, byte *base)
 #define max(x, y) ((x) < (y) ? (y) : (x))
 
 static byte binary[MAXBIN];
-static size_t bin_size;
+static val_t bin_size;
 
 static char **parse_line(char *str)
 {
 	static char *args[MAXARGN];
 	char *token;
-	size_t n = 0;
+	int n = 0;
 
 	while ((token = strsep(&str, "\n\t ,")) != NULL) {
 
@@ -390,7 +390,7 @@ static void driver(FILE *in)
 {
 	char buf[BUFSIZE];
 	char **argp;
-	size_t e_offset;
+	val_t e_offset;
 
 	bin_size = 0;
 

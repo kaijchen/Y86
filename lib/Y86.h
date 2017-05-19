@@ -1,9 +1,8 @@
 #ifndef _Y86ASM_
 #define _Y86ASM_
 
-#include <stdlib.h>
-
-typedef unsigned int imm_t;
+typedef int sval_t;
+typedef unsigned int val_t;
 typedef unsigned char reg_t;
 typedef unsigned char ins_t;
 typedef unsigned char byte;
@@ -58,7 +57,7 @@ typedef enum ifun {
 
 #define pack_ins(icode, func) pack(icode, func)
 #define icode_of_ins(ins) unpack_h(ins)
-#define func_of_ins(ins) unpack_l(ins)
+#define ifun_of_ins(ins) unpack_l(ins)
 
 #define pack_reg(rA, rB) pack(rA, rB)
 #define rA_of_reg(reg) unpack_h(reg)
@@ -70,7 +69,7 @@ extern const char *regid_name(regid_t regid);
 extern ins_t parse_ins(const char *str);
 extern const char *ins_name(ins_t ins);
 
-extern int has_imm_section(icode_t icode);
-extern int has_reg_section(icode_t icode);
+extern int need_val(icode_t icode);
+extern int need_reg(icode_t icode);
 
 #endif
