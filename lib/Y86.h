@@ -17,7 +17,6 @@ typedef enum regid {
 	R_EBP	= 0x5,
 	R_ESI	= 0x6,
 	R_EDI	= 0x7,
-	R_ERR	= 0xE,
 	R_NONE	= 0xF,
 } regid_t;
 
@@ -37,7 +36,6 @@ typedef enum code {
 	I_LONG		= 0xC,
 	I_POS		= 0xD,
 	I_ALIGN		= 0xE,
-	I_ERR		= 0xF,
 } code_t;
 
 typedef enum alu {

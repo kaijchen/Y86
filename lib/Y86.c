@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #define error(message, syntax, value)			\
 	fprintf(stderr, "Error: %s: %s - "syntax"\n",	\
@@ -135,7 +136,6 @@ static const struct ins_dict Y86_INS_DICT[] = {
 	{".long",  pack_ins(I_LONG, C_NONE)  },
 	{".pos",   pack_ins(I_POS, C_NONE)   },
 	{".align", pack_ins(I_ALIGN, C_NONE) },
-	{NULL,     pack_ins(I_ERR, C_NONE)   }
 };
 
 static ins_t parse_ins(const char *str)
@@ -147,7 +147,7 @@ static ins_t parse_ins(const char *str)
 			return ptr->ins;
 
 	error("unknown instruction", "%s", str);
-	return ptr->ins;
+	exit(EXIT_FAILURE);
 }
 
 const char *instr_name(ins_t ins)
@@ -159,7 +159,7 @@ const char *instr_name(ins_t ins)
 			return ptr->str;
 
 	error("unknown instruction", "%02X", ins);
-	return ptr->str;
+	exit(EXIT_FAILURE);
 }
 
 struct regid_dict {
@@ -176,7 +176,6 @@ static const struct regid_dict Y86_REGID_DICT[] = {
 	{"%ebp", R_EBP},
 	{"%esi", R_ESI},
 	{"%edi", R_EDI},
-	{NULL, R_ERR},
 };
 
 static regid_t parse_regid(const char *str)
@@ -188,7 +187,7 @@ static regid_t parse_regid(const char *str)
 			return ptr->regid;
 
 	error("unknown register", "%s", str);
-	return ptr->regid;
+	exit(EXIT_FAILURE);
 }
 
 static const char *register_name(regid_t regid)
@@ -200,7 +199,7 @@ static const char *register_name(regid_t regid)
 			return ptr->str;
 
 	error("unknown register", "%02X", regid);
-	return ptr->str;
+	exit(EXIT_FAILURE);
 }
 
 const char *regA_name(reg_t reg)
@@ -261,7 +260,6 @@ static const struct code_info Y86_CODE_INFO[] = {
 	{F_IMM,             2, fill_i_v,   NULL      }, /* C .long */
 	{F_NONE,            2, NULL,       size_pos  }, /* D .pos */
 	{F_NONE,            2, NULL,       size_align}, /* E .align */
-	{F_NONE,            0, NULL,       NULL      }, /* F ERROR */
 };
 
 size_t assembler(char **args, byte *base)
@@ -317,8 +315,8 @@ size_t assembler(char **args, byte *base)
 	for (tmp = 0; args[tmp] != NULL; tmp++)
 		;
 	if (tmp != argn_of_code(code)) {
-		error("instruction syntax error", "%s", args[0]);
-		return e_offset;
+		error("wrong instruction syntax", "%s", args[0]);
+		exit(EXIT_FAILURE);
 	}
 
 	/* fill other sections */
@@ -368,7 +366,7 @@ static regid_t parse_memory(char *str, imm_t *immp)
 	if (*x == '\0' || *y == '\0' || x > y
 			|| x[1] != '%' || y[1] != '\0') {
 		error("wrong memory access syntax", "%s", str);
-		return R_ERR;
+		exit(EXIT_FAILURE);
 	}
 
 	*x = '\0';
