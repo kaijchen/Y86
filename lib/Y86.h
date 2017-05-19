@@ -36,11 +36,13 @@ typedef enum icode {
 } icode_t;
 
 typedef enum ifun {
+	/* ALU */
 	A_ADD	= 0x0,
 	A_SUB	= 0x1,
 	A_AND	= 0x2,
 	A_XOR	= 0x3,
 
+	/* COND */
 	C_ALL	= 0x0,
 	C_LE	= 0x1,
 	C_L	= 0x2,
@@ -50,10 +52,25 @@ typedef enum ifun {
 	C_G	= 0x6,
 } ifun_t;
 
-extern size_t assembler(char **args, byte *base);
+#define pack(h, l) (((l) & 0xF) | (((h) & 0xF) << 4))
+#define unpack_h(c) (((c) >> 4) & 0xF)
+#define unpack_l(c) ((c) & 0xF)
 
+#define pack_ins(icode, func) pack(icode, func)
+#define icode_of_ins(ins) unpack_h(ins)
+#define func_of_ins(ins) unpack_l(ins)
+
+#define pack_reg(rA, rB) pack(rA, rB)
+#define rA_of_reg(reg) unpack_h(reg)
+#define rB_of_reg(reg) unpack_l(reg)
+
+extern regid_t parse_regid(const char *str);
+extern const char *regid_name(regid_t regid);
+
+extern ins_t parse_ins(const char *str);
 extern const char *ins_name(ins_t ins);
-extern const char *regA_name(reg_t reg);
-extern const char *regB_name(reg_t reg);
+
+extern int has_imm_section(icode_t icode);
+extern int has_reg_section(icode_t icode);
 
 #endif

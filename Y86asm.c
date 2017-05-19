@@ -1,5 +1,5 @@
-#include "Y86.h"
-#include "list.h"
+#include "lib/Y86.h"
+#include "lib/list.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
@@ -9,22 +9,30 @@
 	fprintf(stderr, "Error: %s: %s - "syntax"\n",	\
 			__func__, message, value)
 
-static LIST_HEAD(symbol_head);		/* symbol list head */
+static LIST_HEAD(symbol_head);		/* head of symbol list */
 
 struct immp_entry {
 	imm_t *immp;
-	struct list_head immp_list;	/* immp list */
+	struct list_head immp_list;	/* immp list node */
 };
 
 struct symbol_entry {
 	char *symbol;
 	int valid;
 	imm_t value;
-	struct list_head symbol_list;	/* symbol list */
-	struct list_head immp_head;	/* immp list head */
+	struct list_head symbol_list;	/* symbol list node */
+	struct list_head immp_head;	/* head of immp list of the symbol */
 };
 
-static void add_immp(struct list_head *immp_headp, imm_t *immp)
+/**
+ * add_immp(immp)
+ *
+ * @immp: a pointer to where the value should be stored.
+ * @immp_headp: a pointer to the head of the immp lint.
+ * 
+ * add the immp to the immp list.
+ */
+static void add_immp(imm_t *immp, struct list_head *immp_headp)
 {
 	struct immp_entry *iptr = malloc(sizeof(*iptr));
 
@@ -34,12 +42,19 @@ static void add_immp(struct list_head *immp_headp, imm_t *immp)
 	list_add(&iptr->immp_list, immp_headp);
 }
 
-static struct symbol_entry *add_new_symbol(const char *symbol, imm_t value)
+/**
+ * add_symbol(symbol)
+ *
+ * @symbol: a string, name of the symbol (without trailing ':')
+ *
+ * add the symbol to the symbol list @symbol_head,
+ * with an unassigned value and an empty immp list.
+ */
+static struct symbol_entry *add_symbol(const char *symbol)
 {
 	struct symbol_entry *sptr = malloc(sizeof(*sptr));
 
 	sptr->symbol = strdup(symbol);
-	sptr->value = value;
 	sptr->valid = 0;
 	INIT_LIST_HEAD(&sptr->immp_head);
 
@@ -48,7 +63,17 @@ static struct symbol_entry *add_new_symbol(const char *symbol, imm_t value)
 	return sptr;
 }
 
-static void add_symbol(const char *symbol, imm_t value)
+/**
+ * assign_value(symbol, value)
+ *
+ * @symbol: a string, name of the symbol (without trailing ':').
+ * @value: a number assigned to that symbol.
+ *
+ * assign the symbol with the value,
+ * for each immp in immp list of the symbol,
+ * fill *immp with the value.
+ */
+static void assign_value(const char *symbol, imm_t value)
 {
 	struct symbol_entry *sptr;
 	struct immp_entry *iptr, *itmp;
@@ -58,9 +83,15 @@ static void add_symbol(const char *symbol, imm_t value)
 			break;
 
 	if (&sptr->symbol_list == &symbol_head)
-		sptr = add_new_symbol(symbol, value);
+		sptr = add_symbol(symbol);
+
+	if (sptr->valid == 1) {
+		error("symbol already assigned with a value", "%s", symbol);
+		exit(EXIT_FAILURE);
+	}
 
 	sptr->valid = 1;
+	sptr->value = value;
 
 	list_for_each_entry_safe(iptr, itmp, &sptr->immp_head, immp_list) {
 		*iptr->immp = value;
@@ -68,6 +99,17 @@ static void add_symbol(const char *symbol, imm_t value)
 	}
 }
 
+/**
+ * lookup_symbol(symbol, immp)
+ *
+ * @symbol: a string, name of the symbol.
+ * @immp: a pointer to where the value should be stored.
+ *
+ * fill *immp with the value of the symbol.
+ * if the symbol haven't been assigned with a value yet,
+ * store immp in the immp list of the symbol,
+ * which will be filled when a value is assigned to the symbol.
+ */
 static void lookup_symbol(const char *symbol, imm_t *immp)
 {
 	struct symbol_entry *sptr;
@@ -76,281 +118,14 @@ static void lookup_symbol(const char *symbol, imm_t *immp)
 		if (strcmp(sptr->symbol, symbol) == 0)
 			break;
 
-	if (&sptr->symbol_list == &symbol_head) {
-		sptr = add_new_symbol(symbol, 0);
-		sptr->valid = 0;
-	}
+	if (&sptr->symbol_list == &symbol_head)
+		sptr = add_symbol(symbol);
 
 	if (sptr->valid) {
 		*immp = sptr->value;
 	} else {
-		add_immp(&sptr->immp_head, immp);
+		add_immp(immp, &sptr->immp_head);
 	}
-}
-
-#define pack(h, l) (((l) & 0xF) | (((h) & 0xF) << 4))
-#define unpack_h(c) (((c) >> 4) & 0xF)
-#define unpack_l(c) ((c) & 0xF)
-
-#define pack_ins(icode, func) pack(icode, func)
-#define icode_of_ins(ins) unpack_h(ins)
-#define func_of_ins(ins) unpack_l(ins)
-
-#define pack_reg(rA, rB) pack(rA, rB)
-#define rA_of_reg(reg) unpack_h(reg)
-#define rB_of_reg(reg) unpack_l(reg)
-
-struct ins_dict {
-	const char *str;
-	ins_t ins;
-};
-
-static const struct ins_dict Y86_INS_DICT[] = {
-	{"halt",   pack_ins(I_HALT, C_ALL)  },
-	{"nop",    pack_ins(I_NOP, C_ALL)   },
-	{"rrmovl", pack_ins(I_RRMOVL, C_ALL)},
-	{"cmovle", pack_ins(I_RRMOVL, C_LE) },
-	{"cmovl",  pack_ins(I_RRMOVL, C_L)  },
-	{"cmove",  pack_ins(I_RRMOVL, C_E)  },
-	{"cmovne", pack_ins(I_RRMOVL, C_NE) },
-	{"cmovge", pack_ins(I_RRMOVL, C_GE) },
-	{"cmovg",  pack_ins(I_RRMOVL, C_G)  },
-	{"irmovl", pack_ins(I_IRMOVL, C_ALL)},
-	{"rmmovl", pack_ins(I_RMMOVL, C_ALL)},
-	{"mrmovl", pack_ins(I_MRMOVL, C_ALL)},
-	{"addl",   pack_ins(I_OPL, A_ADD)   },
-	{"subl",   pack_ins(I_OPL, A_SUB)   },
-	{"andl",   pack_ins(I_OPL, A_AND)   },
-	{"xorl",   pack_ins(I_OPL, A_XOR)   },
-	{"jmp",    pack_ins(I_JXX, C_ALL)   },
-	{"jle",    pack_ins(I_JXX, C_LE)    },
-	{"jl",     pack_ins(I_JXX, C_L)     },
-	{"je",     pack_ins(I_JXX, C_E)     },
-	{"jne",    pack_ins(I_JXX, C_NE)    },
-	{"jge",    pack_ins(I_JXX, C_GE)    },
-	{"jg",     pack_ins(I_JXX, C_G)     },
-	{"call",   pack_ins(I_CALL, C_ALL)  },
-	{"ret",    pack_ins(I_RET, C_ALL)   },
-	{"pushl",  pack_ins(I_PUSHL, C_ALL) },
-	{"popl",   pack_ins(I_POPL, C_ALL)  },
-};
-
-static ins_t parse_ins(const char *str)
-{
-	const struct ins_dict *ptr;
-
-	for (ptr = Y86_INS_DICT; ptr->str != NULL; ptr++)
-		if (strcmp(ptr->str, str) == 0)
-			return ptr->ins;
-
-	error("unknown instruction", "%s", str);
-	exit(EXIT_FAILURE);
-}
-
-const char *instr_name(ins_t ins)
-{
-	const struct ins_dict *ptr;
-
-	for (ptr = Y86_INS_DICT; ptr->str != NULL; ptr++)
-		if (ptr->ins == ins)
-			return ptr->str;
-
-	error("unknown instruction", "%02X", ins);
-	exit(EXIT_FAILURE);
-}
-
-struct regid_dict {
-	const char *str;
-	regid_t regid;
-};
-
-static const struct regid_dict Y86_REGID_DICT[] = {
-	{"%eax", R_EAX},
-	{"%ecx", R_ECX},
-	{"%edx", R_EDX},
-	{"%ebx", R_EBX},
-	{"%esp", R_ESP},
-	{"%ebp", R_EBP},
-	{"%esi", R_ESI},
-	{"%edi", R_EDI},
-};
-
-static regid_t parse_regid(const char *str)
-{
-	const struct regid_dict *ptr;
-
-	for (ptr = Y86_REGID_DICT; ptr->str != NULL; ptr++)
-		if (strcmp(ptr->str, str) == 0)
-			return ptr->regid;
-
-	error("unknown register", "%s", str);
-	exit(EXIT_FAILURE);
-}
-
-static const char *register_name(regid_t regid)
-{
-	const struct regid_dict *ptr;
-
-	for (ptr = Y86_REGID_DICT; ptr->str != NULL; ptr++)
-		if (ptr->regid == regid)
-			return ptr->str;
-
-	error("unknown register", "%02X", regid);
-	exit(EXIT_FAILURE);
-}
-
-const char *regA_name(reg_t reg)
-{
-	return register_name(rA_of_reg(reg));
-}
-
-const char *regB_name(reg_t reg)
-{
-	return register_name(rB_of_reg(reg));
-}
-
-static void fill_i(char **args, reg_t *regp, imm_t *immp);
-static void fill_i_r_r(char **args, reg_t *regp, imm_t *immp);
-static void fill_i_v_r(char **args, reg_t *regp, imm_t *immp);
-static void fill_i_r_m(char **args, reg_t *regp, imm_t *immp);
-static void fill_i_m_r(char **args, reg_t *regp, imm_t *immp);
-static void fill_i_v(char **args, reg_t *regp, imm_t *immp);
-static void fill_i_r(char **args, reg_t *regp, imm_t *immp);
-
-#define argn_of_icode(icode) (Y86_ICODE_INFO[icode].argn)
-#define filler_of_icode(icode) (Y86_ICODE_INFO[icode].filler)
-
-static int has_reg_section(icode_t icode)
-{
-	switch (icode) {
-	case I_RRMOVL:
-	case I_IRMOVL:
-	case I_RMMOVL:
-	case I_MRMOVL:
-	case I_OPL:
-	case I_PUSHL:
-	case I_POPL:
-		return 1;
-	default:
-		return 0;
-	}
-}
-
-static int has_imm_section(icode_t icode)
-{
-	switch (icode) {
-	case I_IRMOVL:
-	case I_RMMOVL:
-	case I_MRMOVL:
-	case I_JXX:
-	case I_CALL:
-		return 1;
-	default:
-		return 0;
-	}
-}
-
-struct icode_info {
-	size_t argn;
-	void (*filler)(char **, reg_t *, imm_t *);
-};
-
-static const struct icode_info Y86_ICODE_INFO[] = {
-	{1, fill_i,    },	/* 0 halt */
-	{1, fill_i,    },	/* 1 nop */
-	{3, fill_i_r_r,},	/* 2 rrmovl */
-	{3, fill_i_v_r,},	/* 3 irmovl */
-	{3, fill_i_r_m,},	/* 4 rmmovl */
-	{3, fill_i_m_r,},	/* 5 mrmovl */
-	{3, fill_i_r_r,},	/* 6 opl */
-	{2, fill_i_v,  },	/* 7 jxx */
-	{2, fill_i_v,  },	/* 8 call */
-	{1, fill_i,    },	/* 9 ret */
-	{2, fill_i_r,  },	/* A pushl */
-	{2, fill_i_r,  },	/* B popl */
-};
-
-static imm_t parse_number(const char *str);
-
-size_t assembler(char **args, byte *base)
-{
-	static size_t s_offset = 0;	/* at the start of next instruction */
-	static size_t e_offset = 0;	/* after the end of last instruction */
-	byte *pos = base + s_offset;
-	ins_t ins;
-	icode_t icode;
-	ins_t *insp = NULL;
-	reg_t *regp = NULL;
-	imm_t *immp = NULL;
-	size_t tmp;
-
-	if (args[0] == NULL)
-		return e_offset;
-
-	/* check symbol */
-	tmp = strlen(args[0]);
-	if (args[0][tmp - 1] == ':') {
-		args[0][tmp - 1] = '\0';
-		add_symbol(args[0], s_offset);
-		if (*++args == NULL)
-			return e_offset;
-	}
-
-	/* check command */
-	if (args[0][0] == '.') {
-		if (args[1] == NULL || args[2] != NULL) {
-			error("wrong command syntax", "%s", args[0]);
-			exit(EXIT_FAILURE);
-		}
-		tmp = parse_number(args[1]);
-		if (strcmp(args[0], ".long") == 0) {
-			immp = (imm_t *)pos;
-			pos = (byte *)(immp + 1);
-			*immp = tmp;
-			s_offset = e_offset = pos - base;
-		} else if (strcmp(args[0], ".pos") == 0) {
-			s_offset = tmp;
-		} else if (strcmp(args[0], ".align") == 0) {
-			if (s_offset % tmp != 0)
-				s_offset += tmp - s_offset % tmp;
-		} else {
-			error("unknown command", "%s", args[0]);
-			exit(EXIT_FAILURE);
-		}
-		return e_offset;
-	}
-
-	/* instruction */
-	ins = parse_ins(args[0]);
-	icode = icode_of_ins(ins);
-
-	insp = (ins_t *)pos;
-	pos = (byte *)(insp + 1);
-	if (has_reg_section(icode)) {
-		regp = (reg_t *)pos;
-		pos = (byte *)(regp + 1);
-	}
-	if (has_imm_section(icode)) {
-		immp = (imm_t *)pos;
-		pos = (byte *)(immp + 1);
-	}
-
-	/* next instruction follows the last */
-	s_offset = e_offset = pos - base;
-
-	/* check argn */
-	for (tmp = 0; args[tmp] != NULL; tmp++)
-		;
-	if (tmp != argn_of_icode(icode)) {
-		error("wrong instruction syntax", "%s", args[0]);
-		exit(EXIT_FAILURE);
-	}
-
-	/* fill sections */
-	*insp = ins;
-	filler_of_icode(icode)(args, regp, immp);
-
-	return e_offset;
 }
 
 static imm_t parse_number(const char *str)
@@ -405,16 +180,15 @@ static regid_t parse_memory(char *str, imm_t *immp)
 }
 
 /**
- * fillers(args, regp, immp)
+ * fill__(args, regp, immp)
  *
  *  _i: instruction
  *  _r: register
  *  _v: constant
  *  _m: memory
  *
- * parse @args, and store reg at @regp, imm at @immp
+ * fill *regp and *immp according to args.
  */
-
 static void fill_i(char **args, reg_t *regp, imm_t *immp)
 {
 	return;
@@ -449,4 +223,198 @@ static void fill_i_v(char **args, reg_t *regp, imm_t *immp)
 static void fill_i_r(char **args, reg_t *regp, imm_t *immp)
 {
 	*regp = pack_reg(parse_regid(args[1]), R_NONE);
+}
+
+/**
+ * icode_argn(icode)
+ *
+ * @icode: instruction code
+ *
+ * return argument number of the icode
+ */
+static size_t icode_argn(icode_t icode)
+{
+	switch (icode) {
+	case I_HALT:
+	case I_NOP:
+	case I_RET:
+		return 1;
+	case I_JXX:
+	case I_CALL:
+	case I_PUSHL:
+	case I_POPL:
+		return 2;
+	case I_RRMOVL:
+	case I_IRMOVL:
+	case I_RMMOVL:
+	case I_MRMOVL:
+	case I_OPL:
+		return 3;
+	default:
+		error("unknown icode", "%d", icode);
+		exit(EXIT_FAILURE);
+	}
+}
+
+static void (*icode_filler[])(char **, reg_t *, imm_t *) = {
+	fill_i,		/* 0 halt */
+	fill_i,		/* 1 nop */
+	fill_i_r_r,	/* 2 rrmovl */
+	fill_i_v_r,	/* 3 irmovl */
+	fill_i_r_m,	/* 4 rmmovl */
+	fill_i_m_r,	/* 5 mrmovl */
+	fill_i_r_r,	/* 6 opl */
+	fill_i_v,	/* 7 jxx */
+	fill_i_v,	/* 8 call */
+	fill_i,		/* 9 ret */
+	fill_i_r,	/* A pushl */
+	fill_i_r,	/* B popl */
+};
+
+size_t assembler(char **args, byte *base)
+{
+	static size_t s_offset = 0;	/* at the start of next instruction */
+	static size_t e_offset = 0;	/* after the end of last instruction */
+	byte *pos = base + s_offset;
+	ins_t ins;
+	icode_t icode;
+	ins_t *insp = NULL;
+	reg_t *regp = NULL;
+	imm_t *immp = NULL;
+	size_t tmp;
+
+	if (args[0] == NULL)
+		return e_offset;
+
+	/* check symbol */
+	tmp = strlen(args[0]);
+	if (args[0][tmp - 1] == ':') {
+		args[0][tmp - 1] = '\0';
+		assign_value(args[0], s_offset);
+		if (*++args == NULL)
+			return e_offset;
+	}
+
+	/* check command */
+	if (args[0][0] == '.') {
+		if (args[1] == NULL || args[2] != NULL) {
+			error("wrong command syntax", "%s", args[0]);
+			exit(EXIT_FAILURE);
+		}
+		tmp = parse_number(args[1]);
+		if (strcmp(args[0], ".long") == 0) {
+			immp = (imm_t *)pos;
+			pos = (byte *)(immp + 1);
+			*immp = tmp;
+			s_offset = e_offset = pos - base;
+		} else if (strcmp(args[0], ".pos") == 0) {
+			s_offset = tmp;
+		} else if (strcmp(args[0], ".align") == 0) {
+			if (s_offset % tmp != 0)
+				s_offset += tmp - s_offset % tmp;
+		} else {
+			error("unknown command", "%s", args[0]);
+			exit(EXIT_FAILURE);
+		}
+		return e_offset;
+	}
+
+	/* instruction */
+	ins = parse_ins(args[0]);
+	icode = icode_of_ins(ins);
+
+	insp = (ins_t *)pos;
+	pos = (byte *)(insp + 1);
+	if (has_reg_section(icode)) {
+		regp = (reg_t *)pos;
+		pos = (byte *)(regp + 1);
+	}
+	if (has_imm_section(icode)) {
+		immp = (imm_t *)pos;
+		pos = (byte *)(immp + 1);
+	}
+
+	/* next instruction follows the last */
+	s_offset = e_offset = pos - base;
+
+	/* check argn */
+	for (tmp = 0; args[tmp] != NULL; tmp++)
+		;
+	if (tmp != icode_argn(icode)) {
+		error("wrong instruction syntax", "%s", args[0]);
+		exit(EXIT_FAILURE);
+	}
+
+	/* fill sections */
+	*insp = ins;
+	icode_filler[icode](args, regp, immp);
+
+	return e_offset;
+}
+
+#define MAXBIN 4000
+#define BUFSIZE 1000
+#define MAXARGN 8
+
+#define max(x, y) ((x) < (y) ? (y) : (x))
+
+static byte binary[MAXBIN];
+static size_t bin_size;
+
+static char **parse_line(char *str)
+{
+	static char *args[MAXARGN];
+	char *token;
+	size_t n = 0;
+
+	while ((token = strsep(&str, "\n\t ,")) != NULL) {
+
+		/* skip comments, ensure within limit */
+		if (token[0] == '#' || n + 1 == MAXARGN)
+			break;
+
+		/* skip empty fields */
+		if (token[0] == '\0')
+			continue;
+
+		args[n++] = token;
+	}
+
+	/* null terminate */
+	args[n] = NULL;
+
+	return args;
+}
+
+static void driver(FILE *in)
+{
+	char buf[BUFSIZE];
+	char **argp;
+	size_t e_offset;
+
+	bin_size = 0;
+
+	while (fgets(buf, BUFSIZE, in) != NULL) {
+		argp = parse_line(buf);
+		e_offset = assembler(argp, binary);
+		bin_size = max(e_offset, bin_size);
+	}
+}
+
+static void writeout(FILE *out)
+{
+	for (size_t i = 0; i < bin_size; i++)
+		putc(binary[i], out);
+}
+
+int main(int argc, char *argv[])
+{
+	FILE *fileout;
+
+	driver(stdin);
+
+	fileout = fopen("y.out", "w");
+	writeout(fileout);
+	fclose(fileout);
+	exit(EXIT_SUCCESS);
 }
