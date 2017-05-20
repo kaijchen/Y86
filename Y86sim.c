@@ -2,11 +2,92 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+enum { F_OF, F_SF, F_ZF };
+
+#define setflag(cc, flag) ((cc) |= (1 << flag))
+#define rmflag(cc, flag) ((cc) &= ~(1 << flag))
+#define getflag(cc, flag) (((cc) >> flag) & 1)
+#define modflag(cc, flag, bit) ((bit) ? setflag(cc, flag) : rmflag(cc, flag))
+
 #define MAXMEM 4000
 
-static int ZF, SF, OF, CC;
 static byte M[MAXMEM];
-static val_t R[8];
+static val_t CC, R[8];
+
+static int cond(int cc, ifun_t ifun)
+{
+	int of = getflag(cc, F_OF);
+	int sf = getflag(cc, F_SF);
+	int zf = getflag(cc, F_ZF);
+
+	switch (ifun) {
+	case C_LE:
+		return (sf != of) || (zf);
+	case C_L:
+		return sf != of;
+	case C_E:
+		return zf;
+	case C_NE:
+		return !zf;
+	case C_GE:
+		return !(sf != of);
+	case C_G:
+		return !(sf != of) && !zf;
+	default:
+		return 1;
+	}
+}
+
+static sval_t alu(ifun_t alufun, sval_t aluA, sval_t aluB,
+		int set_cc, val_t *cc_ptr)
+{
+	int zf, sf, of;
+	sval_t aluE;
+
+	switch (alufun) {
+	case A_ADD:
+		aluE = (aluB + aluA);
+		of = (((aluA < 0) == (aluB < 0))
+		   && ((aluE < 0) != (aluA < 0)));
+		break;
+	case A_SUB:
+		aluE = (aluB - aluA);
+		of = (((aluA < 0) != (aluB < 0))
+		   && ((aluE < 0) != (aluA < 0)));
+		break;
+	case A_AND:
+		aluE = (aluB & aluA);
+		of = 0;
+		break;
+	case A_XOR:
+		aluE = (aluB ^ aluA);
+		of = 0;
+		break;
+	default:
+		exit(EXIT_FAILURE);
+	}
+
+	zf = (aluE == 0);
+	sf = (aluE < 0);
+
+	if (set_cc) {
+		modflag(*cc_ptr, F_OF, of);
+		modflag(*cc_ptr, F_SF, sf);
+		modflag(*cc_ptr, F_ZF, zf);
+	}
+	return aluE;
+}
+
+static void memory(val_t addr, int mem_read, int mem_write, val_t *valp) 
+{
+	if (addr + sizeof(*valp) > MAXMEM)
+		exit(EXIT_FAILURE);
+
+	if (mem_write)
+		*(val_t *)&M[addr] = *valp;
+	if (mem_read)
+		*valp = *(val_t *)&M[addr];
+}
 
 static void run()
 {
@@ -16,8 +97,8 @@ static void run()
 	ifun_t ifun, alufun;
 	reg_t reg;
 	regid_t rA, rB, srcA, srcB, dstE;
-	val_t valA, valB, valC, valM;
-	sval_t aluA, aluB, valE;
+	val_t valA, valB, valC, valE, valM;
+	sval_t aluA, aluB;
 	int Cnd, set_cc, mem_read, mem_write;
 
 	while (1) {
@@ -38,39 +119,12 @@ static void run()
 		}
 		if (need_val(icode)) {
 			valC = *(val_t *)&M[valP];
-			printf(" %d", valC);
+			printf(" %08x", valC);
 			valP += sizeof(valC);
 		}
 		printf("\n");
 		if (icode == I_HALT)
 			return;
-
-		ZF = ((CC >> 2) & 1);
-		SF = ((CC >> 1) & 1);
-		OF = (CC & 1);
-		switch (ifun) {
-		case C_ALL:
-			Cnd = 1;
-			break;
-		case C_LE:
-			Cnd = ((SF != OF) || (ZF));
-			break;
-		case C_L:
-			Cnd = (SF != OF);
-			break;
-		case C_E:
-			Cnd = ZF;
-			break;
-		case C_NE:
-			Cnd = (!ZF);
-			break;
-		case C_GE:
-			Cnd = (!(SF != OF));
-			break;
-		case C_G:
-			Cnd = (!(SF != OF) && !ZF);
-			break;
-		}
 
 		/* decode */
 		/**
@@ -130,6 +184,7 @@ static void run()
 		 */
 		switch(icode) {
 		case I_RRMOVL:
+			Cnd = cond(CC, ifun);
 			dstE = Cnd ? rB : R_NONE;
 			break;
 		case I_IRMOVL:
@@ -222,34 +277,7 @@ static void run()
 		set_cc = (icode == I_OPL);
 
 		/* ALU */
-		switch (alufun) {
-		case A_ADD:
-			valE = (aluB + aluA);
-			OF = (((aluA < 0) == (aluB < 0))
-			   && ((valE < 0) != (aluA < 0)));
-			break;
-		case A_SUB:
-			valE = (aluB - aluA);
-			OF = (((aluA < 0) != (aluB < 0))
-			   && ((valE < 0) != (aluA < 0)));
-			break;
-		case A_AND:
-			valE = (aluB & aluA);
-			OF = 0;
-			break;
-		case A_XOR:
-			valE = (aluB ^ aluA);
-			OF = 0;
-			break;
-		default:
-			;
-		}
-		ZF = (valE == 0);
-		SF = (valE < 0);
-
-		if (set_cc) {
-			CC = ((ZF << 2) | (SF << 1) | OF);
-		}
+		valE = alu(alufun, aluA, aluB, set_cc, &CC);
 
 		/* memory */
 		/**
@@ -292,29 +320,18 @@ static void run()
 		switch (icode) {
 		case I_RMMOVL:
 		case I_PUSHL:
+			valM = valA;
+			mem_write = 1;
+			break;
 		case I_CALL:
+			valM = valP;
 			mem_write = 1;
 			break;
 		default:
 			mem_write = 0;
 		}
 
-		if (mem_read)
-			valM = *(val_t *)&M[mem_addr];
-
-		if (mem_write) {
-			switch (icode) {
-			case I_RMMOVL:
-			case I_PUSHL:
-				*(val_t *)&M[mem_addr] = valA;
-				break;
-			case I_CALL:
-				*(val_t *)&M[mem_addr] = valP;
-				break;
-			default:
-				;
-			}
-		}
+		memory(mem_addr, mem_read, mem_write, &valM);
 
 		/* write_back */
 		if (dstE != R_NONE) {
@@ -343,6 +360,7 @@ static void run()
 			PC = valC;
 			break;
 		case I_JXX:
+			Cnd = cond(CC, ifun);
 			PC = Cnd ? valC : valP;
 			break;
 		case I_RET:
