@@ -230,7 +230,7 @@ static void run()
 			break;
 		case A_SUB:
 			valE = (aluB - aluA);
-			OF = (((aluA < 0) == (aluB < 0))
+			OF = (((aluA < 0) != (aluB < 0))
 			   && ((valE < 0) != (aluA < 0)));
 			break;
 		case A_AND:
