@@ -12,13 +12,14 @@ enum { F_OF, F_SF, F_ZF };
 #define MAXMEM 4000
 
 static byte M[MAXMEM];
-static val_t CC, R[8];
+static val_t PC, CC, R[8];
+static size_t stepcnt;
 
-static int cond(int cc, ifun_t ifun)
+static int cond(ifun_t ifun)
 {
-	int of = getflag(cc, F_OF);
-	int sf = getflag(cc, F_SF);
-	int zf = getflag(cc, F_ZF);
+	int of = getflag(CC, F_OF);
+	int sf = getflag(CC, F_SF);
+	int zf = getflag(CC, F_ZF);
 
 	switch (ifun) {
 	case C_LE:
@@ -38,8 +39,7 @@ static int cond(int cc, ifun_t ifun)
 	}
 }
 
-static sval_t alu(ifun_t alufun, sval_t aluA, sval_t aluB,
-		int set_cc, val_t *cc_ptr)
+static sval_t alu(ifun_t alufun, sval_t aluA, sval_t aluB, int set_cc)
 {
 	int zf, sf, of;
 	sval_t aluE;
@@ -71,9 +71,9 @@ static sval_t alu(ifun_t alufun, sval_t aluA, sval_t aluB,
 	sf = (aluE < 0);
 
 	if (set_cc) {
-		modflag(*cc_ptr, F_OF, of);
-		modflag(*cc_ptr, F_SF, sf);
-		modflag(*cc_ptr, F_ZF, zf);
+		modflag(CC, F_OF, of);
+		modflag(CC, F_SF, sf);
+		modflag(CC, F_ZF, zf);
 	}
 	return aluE;
 }
@@ -91,7 +91,7 @@ static void memory(val_t addr, int mem_read, int mem_write, val_t *valp)
 
 static void run()
 {
-	val_t PC = 0, valP, mem_addr;
+	val_t valP, mem_addr;
 	ins_t ins;
 	icode_t icode;
 	ifun_t ifun, alufun;
@@ -101,28 +101,26 @@ static void run()
 	sval_t aluA, aluB;
 	int Cnd, set_cc, mem_read, mem_write;
 
+	PC = 0;
+	stepcnt = 0;
 	while (1) {
+		stepcnt++;
 		/* fetch */
 		valP = PC;
 		ins = *(ins_t *)&M[valP];
 		valP += sizeof(ins);
 		icode = ins_icode(ins);
 		ifun = ins_ifun(ins);
-		printf("%04x %s", PC, ins_name(ins));
 		if (need_reg(icode)) {
 			reg = *(reg_t *)&M[valP];
-			if ((rA = reg_rA(reg)) != R_NONE)
-				printf(" %s", regid_name(rA));
-			if ((rB = reg_rB(reg)) != R_NONE)
-				printf(" %s", regid_name(rB));
+			rA = reg_rA(reg);
+			rB = reg_rB(reg);
 			valP += sizeof(reg);
 		}
 		if (need_val(icode)) {
 			valC = *(val_t *)&M[valP];
-			printf(" %08x", valC);
 			valP += sizeof(valC);
 		}
-		printf("\n");
 		if (icode == I_HALT)
 			return;
 
@@ -184,7 +182,7 @@ static void run()
 		 */
 		switch(icode) {
 		case I_RRMOVL:
-			Cnd = cond(CC, ifun);
+			Cnd = cond(ifun);
 			dstE = Cnd ? rB : R_NONE;
 			break;
 		case I_IRMOVL:
@@ -277,7 +275,7 @@ static void run()
 		set_cc = (icode == I_OPL);
 
 		/* ALU */
-		valE = alu(alufun, aluA, aluB, set_cc, &CC);
+		valE = alu(alufun, aluA, aluB, set_cc);
 
 		/* memory */
 		/**
@@ -360,7 +358,7 @@ static void run()
 			PC = valC;
 			break;
 		case I_JXX:
-			Cnd = cond(CC, ifun);
+			Cnd = cond(ifun);
 			PC = Cnd ? valC : valP;
 			break;
 		case I_RET:
@@ -375,12 +373,23 @@ static void run()
 int main()
 {
 	FILE *input = fopen("y.out", "r");
+	int z, s, o;
 
 	/* init */
 	fread(M, sizeof(byte), MAXMEM, input);
 	fclose(input);
 
 	run();
-	printf("%s: %d\n", regid_name(R_EAX), R[R_EAX]);
+
+	z = getflag(CC, F_ZF);
+	s = getflag(CC, F_SF);
+	o = getflag(CC, F_OF);
+	printf("Stopped in %ld steps at PC = 0x%x.\n", stepcnt, PC);
+	printf("CC Z=%d, S=%d, O=%d\n", z, s, o);
+	printf("Changes to registers:\n");
+	for (int i = 0; i < 8; i++)
+		if (R[i] != 0)
+			printf("%s:\t0x%08x\n", regid_name(i), R[i]);
+	/* TODO status & memory change */
 	exit(EXIT_SUCCESS);
 }
