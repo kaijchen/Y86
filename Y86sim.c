@@ -80,7 +80,7 @@ static sval_t alu(ifun_t alufun, sval_t aluA, sval_t aluB,
 
 static void memory(val_t addr, int mem_read, int mem_write, val_t *valp) 
 {
-	if (addr + sizeof(*valp) > MAXMEM)
+	if ((mem_read || mem_write) && (addr + sizeof(*valp) > MAXMEM))
 		exit(EXIT_FAILURE);
 
 	if (mem_write)
