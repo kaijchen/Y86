@@ -62,8 +62,7 @@ const char *ins_name(ins_t ins)
 		if (ptr->ins == ins)
 			return ptr->str;
 
-	error("unknown instruction", "%02X", ins);
-	exit(EXIT_FAILURE);
+	return NULL;
 }
 
 struct regid_dict {
@@ -102,8 +101,7 @@ const char *regid_name(regid_t regid)
 		if (ptr->regid == regid)
 			return ptr->str;
 
-	error("unknown register", "%02X", regid);
-	exit(EXIT_FAILURE);
+	return NULL;
 }
 
 int need_reg(icode_t icode)

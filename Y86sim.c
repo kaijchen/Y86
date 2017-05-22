@@ -1,8 +1,12 @@
 #include "lib/Y86.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-enum { F_OF, F_SF, F_ZF };
+enum flag { F_OF, F_SF, F_ZF };
+enum stat { S_AOK, S_HLT, S_ADR, S_INS };
+
+static const char *statname[] = { "AOK", "HLT", "ADR", "INS" };
 
 #define setflag(cc, flag) ((cc) |= (1 << flag))
 #define rmflag(cc, flag) ((cc) &= ~(1 << flag))
@@ -11,9 +15,10 @@ enum { F_OF, F_SF, F_ZF };
 
 #define MAXMEM 4000
 
-static byte M[MAXMEM];
+static byte M[MAXMEM], origM[MAXMEM];
 static val_t PC, CC, R[8];
-static size_t stepcnt;
+static size_t Step;
+static enum stat Stat;
 
 static int cond(ifun_t ifun)
 {
@@ -39,7 +44,7 @@ static int cond(ifun_t ifun)
 	}
 }
 
-static sval_t alu(ifun_t alufun, sval_t aluA, sval_t aluB, int set_cc)
+static sval_t alu(alu_t alufun, sval_t aluA, sval_t aluB, int set_cc)
 {
 	int zf, sf, of;
 	sval_t aluE;
@@ -63,8 +68,6 @@ static sval_t alu(ifun_t alufun, sval_t aluA, sval_t aluB, int set_cc)
 		aluE = (aluB ^ aluA);
 		of = 0;
 		break;
-	default:
-		exit(EXIT_FAILURE);
 	}
 
 	zf = (aluE == 0);
@@ -78,15 +81,16 @@ static sval_t alu(ifun_t alufun, sval_t aluA, sval_t aluB, int set_cc)
 	return aluE;
 }
 
-static void memory(val_t addr, int mem_read, int mem_write, val_t *valp) 
+static int memory(val_t addr, int mem_read, int mem_write, val_t *valp) 
 {
 	if ((mem_read || mem_write) && (addr + sizeof(*valp) > MAXMEM))
-		exit(EXIT_FAILURE);
+		return -1;
 
 	if (mem_write)
 		*(val_t *)&M[addr] = *valp;
 	if (mem_read)
 		*valp = *(val_t *)&M[addr];
+	return 0;
 }
 
 static void run()
@@ -102,12 +106,17 @@ static void run()
 	int Cnd, set_cc, mem_read, mem_write;
 
 	PC = 0;
-	stepcnt = 0;
+	Step = 0;
+	Stat = S_AOK;
 	while (1) {
-		stepcnt++;
+		Step++;
 		/* fetch */
 		valP = PC;
 		ins = *(ins_t *)&M[valP];
+		if (ins_name(ins) == NULL) {
+			Stat = S_INS;
+			return;
+		}
 		valP += sizeof(ins);
 		icode = ins_icode(ins);
 		ifun = ins_ifun(ins);
@@ -121,8 +130,10 @@ static void run()
 			valC = *(val_t *)&M[valP];
 			valP += sizeof(valC);
 		}
-		if (icode == I_HALT)
+		if (icode == I_HALT) {
+			Stat = S_HLT;
 			return;
+		}
 
 		/* decode */
 		/**
@@ -329,7 +340,10 @@ static void run()
 			mem_write = 0;
 		}
 
-		memory(mem_addr, mem_read, mem_write, &valM);
+		if (memory(mem_addr, mem_read, mem_write, &valM)) {
+			Stat = S_ADR;
+			return;
+		}
 
 		/* write_back */
 		if (dstE != R_NONE) {
@@ -374,9 +388,12 @@ int main()
 {
 	FILE *input = fopen("y.out", "r");
 	int z, s, o;
+	size_t n;
+	val_t now, orig;
 
 	/* init */
-	fread(M, sizeof(byte), MAXMEM, input);
+	n = fread(M, sizeof(byte), MAXMEM, input);
+	memcpy(origM, M, n);
 	fclose(input);
 
 	run();
@@ -384,12 +401,20 @@ int main()
 	z = getflag(CC, F_ZF);
 	s = getflag(CC, F_SF);
 	o = getflag(CC, F_OF);
-	printf("Stopped in %ld steps at PC = 0x%x.\n", stepcnt, PC);
-	printf("CC Z=%d, S=%d, O=%d\n", z, s, o);
+	printf("Stopped in %ld steps at PC = 0x%x. ", Step, PC);
+	printf("Status '%s', CC Z=%d, S=%d, O=%d\n", statname[Stat], z, s, o);
 	printf("Changes to registers:\n");
 	for (int i = 0; i < 8; i++)
 		if (R[i] != 0)
-			printf("%s:\t0x%08x\n", regid_name(i), R[i]);
-	/* TODO status & memory change */
+			printf("%s:\t0x%08x\t0x%08x\n", regid_name(i), 0, R[i]);
+	puts("");
+	printf("Changes to memory:\n");
+	for (int i = 0; i < MAXMEM; i += sizeof(val_t)) {
+		now = *(val_t *)&M[i];
+		orig = *(val_t *)&origM[i];
+		if (now != orig) {
+			printf("0x%04x:\t0x%08x\t0x%08x\n", i, orig, now);
+		}
+	}
 	exit(EXIT_SUCCESS);
 }

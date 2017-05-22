@@ -34,14 +34,14 @@ typedef enum icode {
 	I_POPL		= 0xB,
 } icode_t;
 
-typedef enum ifun {
-	/* ALU */
+typedef enum alu {
 	A_ADD	= 0x0,
 	A_SUB	= 0x1,
 	A_AND	= 0x2,
 	A_XOR	= 0x3,
+} alu_t;
 
-	/* COND */
+typedef enum ifun {
 	C_ALL	= 0x0,
 	C_LE	= 0x1,
 	C_L	= 0x2,
