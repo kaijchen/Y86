@@ -4,9 +4,15 @@
 #include <string.h>
 
 enum flag { F_OF, F_SF, F_ZF };
-enum stat { S_AOK, S_HLT, S_ADR, S_INS };
 
-static const char *statname[] = { "AOK", "HLT", "ADR", "INS" };
+enum stat {
+	S_AOK = 1,
+	S_HLT = 2,
+	S_ADR = 3,
+	S_INS = 4,
+};
+
+static const char *statname[] = { NULL, "AOK", "HLT", "ADR", "INS" };
 
 #define setflag(cc, flag) ((cc) |= (1 << flag))
 #define rmflag(cc, flag) ((cc) &= ~(1 << flag))
@@ -384,14 +390,19 @@ static void run()
 	}
 }
 
-int main()
+int main(int argc, char *argv[])
 {
-	FILE *input = fopen("y.out", "r");
+	FILE *input;
 	int z, s, o;
 	size_t n;
 	val_t now, orig;
 
-	/* init */
+	if (argc < 2 || argc > 3) {
+		fprintf(stderr, "Usage: %s <input>\n", argv[0]);
+		exit(EXIT_FAILURE);
+	}
+
+	input = fopen(argv[1], "r");
 	n = fread(M, sizeof(byte), MAXMEM, input);
 	memcpy(origM, M, n);
 	fclose(input);

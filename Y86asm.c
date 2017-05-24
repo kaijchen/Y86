@@ -403,11 +403,22 @@ static void driver(FILE *in)
 
 int main(int argc, char *argv[])
 {
-	FILE *output;
+	FILE *input, *output;
 
-	driver(stdin);
+	if (argc < 2 || argc > 3) {
+		fprintf(stderr, "Usage: %s <input> [<output>]\n", argv[0]);
+		exit(EXIT_FAILURE);
+	}
 
-	output = fopen("y.out", "w");
+	input = fopen(argv[1], "r");
+	driver(input);
+	fclose(input);
+
+	if (argc == 3) {
+		output = fopen(argv[2], "w");
+	} else {
+		output = fopen("y.out", "w");
+	}
 	fwrite(binary, sizeof(byte), bin_size, output);
 	fclose(output);
 	exit(EXIT_SUCCESS);
