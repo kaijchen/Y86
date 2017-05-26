@@ -17,6 +17,7 @@ typedef enum regid {
 	R_ESI	= 0x6,
 	R_EDI	= 0x7,
 	R_NONE	= 0xF,
+	R_ERR	= 0xE,
 } regid_t;
 
 typedef enum icode {
@@ -32,6 +33,7 @@ typedef enum icode {
 	I_RET		= 0x9,
 	I_PUSHL		= 0xA,
 	I_POPL		= 0xB,
+	I_ERR		= 0xE,
 } icode_t;
 
 typedef enum alu {
@@ -49,6 +51,7 @@ typedef enum ifun {
 	C_NE	= 0x4,
 	C_GE	= 0x5,
 	C_G	= 0x6,
+	C_ERR	= 0xE,
 } ifun_t;
 
 #define pack(h, l) (((l) & 0xF) | (((h) & 0xF) << 4))

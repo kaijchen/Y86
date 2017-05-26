@@ -1,11 +1,5 @@
 #include "Y86.h"
 #include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-#define error(message, syntax, value)			\
-	fprintf(stderr, "Error: %s: %s - "syntax"\n",	\
-			__func__, message, value)
 
 struct ins_dict {
 	const char *str;
@@ -40,6 +34,7 @@ static const struct ins_dict Y86_INS_DICT[] = {
 	{"ret",    pack_ins(I_RET, C_ALL)   },
 	{"pushl",  pack_ins(I_PUSHL, C_ALL) },
 	{"popl",   pack_ins(I_POPL, C_ALL)  },
+	{NULL,     pack_ins(I_ERR, C_ERR)   },
 };
 
 ins_t parse_ins(const char *str)
@@ -48,10 +43,9 @@ ins_t parse_ins(const char *str)
 
 	for (ptr = Y86_INS_DICT; ptr->str != NULL; ptr++)
 		if (strcmp(ptr->str, str) == 0)
-			return ptr->ins;
+			break;
 
-	error("unknown instruction", "%s", str);
-	exit(EXIT_FAILURE);
+	return ptr->ins;
 }
 
 const char *ins_name(ins_t ins)
@@ -79,6 +73,7 @@ static const struct regid_dict Y86_REGID_DICT[] = {
 	{"%ebp", R_EBP},
 	{"%esi", R_ESI},
 	{"%edi", R_EDI},
+	{NULL,   R_ERR},
 };
 
 regid_t parse_regid(const char *str)
@@ -87,10 +82,9 @@ regid_t parse_regid(const char *str)
 
 	for (ptr = Y86_REGID_DICT; ptr->str != NULL; ptr++)
 		if (strcmp(ptr->str, str) == 0)
-			return ptr->regid;
+			break;
 
-	error("unknown register", "%s", str);
-	exit(EXIT_FAILURE);
+	return ptr->regid;
 }
 
 const char *regid_name(regid_t regid)
