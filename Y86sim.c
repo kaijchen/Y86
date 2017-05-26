@@ -3,8 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum flag { F_OF, F_SF, F_ZF };
-
 enum stat {
 	S_AOK = 1,
 	S_HLT = 2,
@@ -12,12 +10,27 @@ enum stat {
 	S_INS = 4,
 };
 
-static const char *statname[] = { NULL, "AOK", "HLT", "ADR", "INS" };
+static const char *stat_name[] = { NULL, "AOK", "HLT", "ADR", "INS" };
 
-#define setflag(cc, flag) ((cc) |= (1 << flag))
-#define rmflag(cc, flag) ((cc) &= ~(1 << flag))
-#define getflag(cc, flag) (((cc) >> flag) & 1)
-#define modflag(cc, flag, bit) ((bit) ? setflag(cc, flag) : rmflag(cc, flag))
+enum flag {
+	F_OF = 0,
+	F_SF = 1,
+	F_ZF = 2,
+};
+
+#define setCC(cc, o, s, z)			\
+	do {					\
+		cc = ((((o) != 0) << F_OF)	\
+		    | (((s) != 0) << F_SF)	\
+		    | (((z) != 0) << F_ZF));	\
+	} while (0)
+
+#define getCC(cc, o, s, z)			\
+	do {					\
+		o = ((cc >> F_OF) & 1);		\
+		s = ((cc >> F_SF) & 1);		\
+		z = ((cc >> F_ZF) & 1);		\
+	} while (0)
 
 #define MAXMEM 4000
 
@@ -28,10 +41,9 @@ static enum stat Stat;
 
 static int cond(ifun_t ifun)
 {
-	int of = getflag(CC, F_OF);
-	int sf = getflag(CC, F_SF);
-	int zf = getflag(CC, F_ZF);
+	int of, sf, zf;
 
+	getCC(CC, of, sf, zf);
 	switch (ifun) {
 	case C_LE:
 		return (sf != of) || (zf);
@@ -79,11 +91,9 @@ static sval_t alu(alu_t alufun, sval_t aluA, sval_t aluB, int set_cc)
 	zf = (aluE == 0);
 	sf = (aluE < 0);
 
-	if (set_cc) {
-		modflag(CC, F_OF, of);
-		modflag(CC, F_SF, sf);
-		modflag(CC, F_ZF, zf);
-	}
+	if (set_cc)
+		setCC(CC, of, sf, zf);
+
 	return aluE;
 }
 
@@ -393,7 +403,7 @@ static void run()
 int main(int argc, char *argv[])
 {
 	FILE *input;
-	int z, s, o;
+	int zf, sf, of;
 	size_t n;
 	val_t now, orig;
 
@@ -409,11 +419,10 @@ int main(int argc, char *argv[])
 
 	run();
 
-	z = getflag(CC, F_ZF);
-	s = getflag(CC, F_SF);
-	o = getflag(CC, F_OF);
+	getCC(CC, of, sf, zf);
 	printf("Stopped in %ld steps at PC = 0x%x. ", Step, PC);
-	printf("Status '%s', CC Z=%d, S=%d, O=%d\n", statname[Stat], z, s, o);
+	printf("Status '%s', ", stat_name[Stat]);
+	printf("CC Z=%d, S=%d, O=%d\n", zf, sf, of);
 	printf("Changes to registers:\n");
 	for (int i = 0; i < 8; i++)
 		if (R[i] != 0)
