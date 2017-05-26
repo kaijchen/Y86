@@ -301,15 +301,16 @@ static val_t assembler(char **args, byte *base)
 			error("wrong command syntax", "%s", args[0]);
 			exit(EXIT_FAILURE);
 		}
-		tmp = parse_number(args[1]);
 		if (strcmp(args[0], ".long") == 0) {
 			valp = (val_t *)pos;
+			fill_constant(args[1], valp);
 			pos = (byte *)(valp + 1);
-			*valp = tmp;
 			s_offset = e_offset = pos - base;
 		} else if (strcmp(args[0], ".pos") == 0) {
+			tmp = parse_number(args[1]);
 			s_offset = tmp;
 		} else if (strcmp(args[0], ".align") == 0) {
+			tmp = parse_number(args[1]);
 			if (s_offset % tmp != 0)
 				s_offset += tmp - s_offset % tmp;
 		} else {
