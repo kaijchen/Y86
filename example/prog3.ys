@@ -1,0 +1,10 @@
+	irmovl mem,%ebx
+	mrmovl 0(%ebx), %esp
+	ret
+	halt
+rtnpt:	irmovl $5,%esi
+	halt
+.pos 0x40
+mem:	.long stack
+.pos 0x50
+stack:	.long rtnpt
