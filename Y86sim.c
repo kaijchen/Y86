@@ -36,7 +36,7 @@ enum flag {
 
 static byte M[MAXMEM], origM[MAXMEM];
 static val_t PC, CC, R[8];
-static size_t Step;
+static unsigned int Step;
 static enum stat Stat;
 
 static int cond(ifun_t ifun)
@@ -420,7 +420,7 @@ int main(int argc, char *argv[])
 	run();
 
 	getCC(CC, of, sf, zf);
-	printf("Stopped in %ld steps at PC = 0x%x. ", Step, PC);
+	printf("Stopped in %u steps at PC = 0x%x. ", Step, PC);
 	printf("Status '%s', ", stat_name[Stat]);
 	printf("CC Z=%d, S=%d, O=%d\n", zf, sf, of);
 	printf("Changes to registers:\n");
